@@ -24,9 +24,7 @@ export default function App() {
     <main className="container py-4 flex-grow">
       {accounts != null && accounts.length > 0 ? accounts[0].address : "none connected"}
       <div className="grid grid-cols-2 gap-4">
-        {/*
-        ------------- Collateral Column ------------
-         */}
+        {/* ------------- Collateral Column ------------ */}
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
@@ -45,9 +43,7 @@ export default function App() {
             </CardContent>
           </Card>
         </div>
-        {/*
-        --------------- Borrow Column --------------
-         */}
+        {/* --------------- Borrow Column -------------- */}
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>

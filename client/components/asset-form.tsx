@@ -83,9 +83,7 @@ export function AssetForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="w-fit flex flex-col gap-2">
         {fields.map((field, i) => (
           <div key={field.id} className="flex flex-row gap-2">
-            {/*
-            ---------------- Select Box ----------------
-            */}
+            {/* ---------------- Select Box ---------------- */}
             <FormField
               control={form.control}
               name={`assets.${i}.asset`}
@@ -117,9 +115,7 @@ export function AssetForm() {
                 </FormItem>
               )}
             />
-            {/*
-            ---------------- Value Input ---------------
-            */}
+            {/* ---------------- Value Input --------------- */}
             <FormField
               name={`assets.${i}.value`}
               control={form.control}
@@ -144,15 +140,11 @@ export function AssetForm() {
                 );
               }}
             />
-            {/*
-            --------------- Remove Button --------------
-            */}
+            {/* --------------- Remove Button -------------- */}
             <Button onClick={(e) => removeAsset(e, i)}> - </Button>
           </div>
         ))}
-        {/*
-        ---------------- Add Button ----------------
-         */}
+        {/* ---------------- Add Button ---------------- */}
         <div className="w-full flex flex-row gap-2 justify-center">
           <Button onClick={addAsset}>Add Collateral</Button>
         </div>
