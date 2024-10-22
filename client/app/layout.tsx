@@ -34,7 +34,7 @@ export default function RootLayout({
       {/* <Script src="https://www.unpkg.com/@radixdlt/radix-dapp-toolkit@2.1.0/dist/radix-dapp-toolkit.bundle.umd.cjs" /> */}
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ContextProvider>
-          <div className="min-h-screen flex flex-col bg-background text-primary ">
+          <div className="min-h-screen flex flex-col ">
             <Navbar />
             {children}
           </div>

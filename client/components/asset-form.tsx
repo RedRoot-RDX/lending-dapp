@@ -2,7 +2,6 @@
 /* ------------------ Imports ----------------- */
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -11,6 +10,7 @@ import { useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { InputIB } from "./input-inline-button";
+import { SelectItemWithInfo } from "./select-item-info";
 
 /* ----------------- Constants ---------------- */
 // Form
@@ -83,6 +83,9 @@ export function AssetForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="w-fit flex flex-col gap-2">
         {fields.map((field, i) => (
           <div key={field.id} className="flex flex-row gap-2">
+            {/*
+            ---------------- Select Box ----------------
+            */}
             <FormField
               control={form.control}
               name={`assets.${i}.asset`}
@@ -99,14 +102,14 @@ export function AssetForm() {
                     <SelectTrigger className="w-20">
                       <SelectValue placeholder="Select Asset" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="grid grid-cols-2">
                       {Assets.filter(
                         (asset) =>
                           asset == field.value || !assetsWatch.assets.map((asset) => asset.asset).includes(asset),
                       ).map((asset, i) => (
-                        <SelectItem key={i} value={asset}>
+                        <SelectItemWithInfo key={i} value={asset}>
                           {asset}
-                        </SelectItem>
+                        </SelectItemWithInfo>
                       ))}
                     </SelectContent>
                   </Select>
@@ -114,6 +117,9 @@ export function AssetForm() {
                 </FormItem>
               )}
             />
+            {/*
+            ---------------- Value Input ---------------
+            */}
             <FormField
               name={`assets.${i}.value`}
               control={form.control}
@@ -138,9 +144,15 @@ export function AssetForm() {
                 );
               }}
             />
+            {/*
+            --------------- Remove Button --------------
+            */}
             <Button onClick={(e) => removeAsset(e, i)}> - </Button>
           </div>
         ))}
+        {/*
+        ---------------- Add Button ----------------
+         */}
         <div className="w-full flex flex-row gap-2 justify-center">
           <Button onClick={addAsset}>Add Collateral</Button>
         </div>
