@@ -14,7 +14,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <input
           type={type}
           className={cn(
-            "h-full bg-background rounded-sm pl-[1px]",
+            "flex-grow h-full bg-background rounded-sm pl-[1px]",
             "placeholder:text-muted-foreground",
             "focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-blue-400/50 focus-visible:ring-offset-[3px] focus:ring-offset-background/50",
             "disabled:cursor-not-allowed disabled:opacity-50",
@@ -23,7 +23,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           {...props}
         />
-        <div className="h-full w-[1px] bg-input rounded-md mx-2" />
+        <div className="h-full w-[1px] mx-2 bg-input rounded-md" />
         <button
           className="rounded-sm font-semibold opacity-85 hover:opacity-100 focus-visible:outline-none"
           onClick={onClick}

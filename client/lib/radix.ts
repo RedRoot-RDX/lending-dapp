@@ -13,4 +13,8 @@ export const rdt = RadixDappToolkit({
 });
 console.log("[radix.ts] rdt:", rdt);
 
+// Wallet connect styling
+rdt.buttonApi.setTheme("white-with-outline");
+rdt.buttonApi.setMode("light");
+
 export const gatewayApi = GatewayApiClient.initialize(rdt.gatewayApi.clientConfig);

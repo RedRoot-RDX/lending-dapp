@@ -23,9 +23,10 @@
     --destructive: #ff4c3b;
     --destructive-foreground: #ffffff;
 
+    --radius: 0.5rem;
+
     --border: #e1e1e1;
     --input: #e1e1e1;
-
     --ring: #070707;
 
     /* Card */
@@ -42,7 +43,11 @@
     --chart-3: #a3c7c8;
     --chart-4: #a8c77d;
     --chart-5: #a2d882;
-    --radius: 0.5rem;
+
+    /* Radix Connect */
+    --radix-connect-button-width: 140px;
+    --radix-connect-button-height: 42px;
+    --radix-connect-button-border-radius: 12px;
   }
 
   .dark {

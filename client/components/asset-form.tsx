@@ -2,21 +2,27 @@
 /* ------------------ Imports ----------------- */
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItemWithInline,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/select-with-inline";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { Assets } from "@/lib/utils";
+import { AssetNames } from "@/lib/utils";
 import { useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { InputIB } from "./input-inline-button";
-import { SelectItemWithInfo } from "./select-item-info";
+import { Comobobox } from "./combobox";
 
 /* ----------------- Constants ---------------- */
 // Form
 const VALUE_REGEX = /^[+-]?(\d*\.)?\d+$/;
 
-const zAssetEnum = z.enum(Assets);
+const zAssetEnum = z.enum(AssetNames);
 const assetFormSchema = z.object({
   assets: z.array(
     z.object({
@@ -27,12 +33,7 @@ const assetFormSchema = z.object({
 });
 
 type AssetEntry = z.infer<typeof assetFormSchema>["assets"][number];
-const defaultAssets: AssetEntry[] = [
-  {
-    asset: "XRD",
-    value: "0.0",
-  },
-];
+const defaultAssets: AssetEntry[] = [];
 
 export function AssetForm() {
   /* ---------------- Input Form ---------------- */
@@ -55,11 +56,11 @@ export function AssetForm() {
   function addAsset(e: any) {
     e.preventDefault();
 
-    if (assetsWatch.assets.length == Assets.length) {
+    if (assetsWatch.assets.length == AssetNames.length) {
       return;
     }
     append({
-      asset: Assets.filter((asset) => !assetsWatch.assets.map((asset) => asset.asset).includes(asset))[0],
+      asset: AssetNames.filter((asset) => !assetsWatch.assets.map((asset) => asset.asset).includes(asset))[0],
       value: "0.0",
     });
   }
@@ -80,37 +81,27 @@ export function AssetForm() {
   /* ----------------- Component ---------------- */
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="w-fit flex flex-col gap-2">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="w-full flex flex-col gap-2">
         {fields.map((field, i) => (
-          <div key={field.id} className="flex flex-row gap-2">
+          <div key={field.id} className="w-full flex flex-row gap-2">
             {/* ---------------- Select Box ---------------- */}
             <FormField
               control={form.control}
               name={`assets.${i}.asset`}
               render={({ field }) => (
                 <FormItem>
-                  <Select
+                  <Comobobox
+                    selection={AssetNames.map((asset) => ({ value: asset, label: asset }))}
                     value={field.value}
                     onValueChange={(value) => {
                       const selectedAssets = form.getValues("assets").map((assetRecord) => assetRecord.asset as string);
                       console.log(value, selectedAssets, selectedAssets.includes(value));
                       field.onChange(value);
                     }}
-                  >
-                    <SelectTrigger className="w-20">
-                      <SelectValue placeholder="Select Asset" />
-                    </SelectTrigger>
-                    <SelectContent className="grid grid-cols-2">
-                      {Assets.filter(
-                        (asset) =>
-                          asset == field.value || !assetsWatch.assets.map((asset) => asset.asset).includes(asset),
-                      ).map((asset, i) => (
-                        <SelectItemWithInfo key={i} value={asset}>
-                          {asset}
-                        </SelectItemWithInfo>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    selectLabel="Select Label"
+                    searchLabel="Search Label"
+                    invalidSearchLabel="Invalid Search"
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -121,10 +112,10 @@ export function AssetForm() {
               control={form.control}
               render={({ field }) => {
                 return (
-                  <FormItem>
+                  <FormItem className="w-full">
                     <FormControl>
                       <InputIB
-                        className="w-48"
+                        className=""
                         placeholder={`Enter amount of ${assetsWatch.assets[i].asset}`}
                         {...field}
                         value={field.value}
@@ -141,12 +132,16 @@ export function AssetForm() {
               }}
             />
             {/* --------------- Remove Button -------------- */}
-            <Button onClick={(e) => removeAsset(e, i)}> - </Button>
+            <Button variant="outline" onClick={(e) => removeAsset(e, i)}>
+              Remove
+            </Button>
           </div>
         ))}
         {/* ---------------- Add Button ---------------- */}
         <div className="w-full flex flex-row gap-2 justify-center">
-          <Button onClick={addAsset}>Add Collateral</Button>
+          <Button variant="outline" onClick={addAsset}>
+            Add Collateral
+          </Button>
         </div>
       </form>
     </Form>
