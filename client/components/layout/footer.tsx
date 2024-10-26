@@ -8,7 +8,7 @@ export function Footer() {
       <div className="container mx-auto px-4 flex flex-col items-center space-y-4">
         <div className="flex space-x-6">
           <a
-            href="https://github.com/Kirillr-Sibirski/radish"
+            href="https://github.com/RadishLending/lending-dapp"
             target="_blank"
             className="flex items-center space-x-2 hover:text-[#fb3640]"
           >

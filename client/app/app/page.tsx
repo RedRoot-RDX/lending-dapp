@@ -18,7 +18,22 @@ const data: Asset[] = [
     select_native: 10,
     select_usd: 0,
     apy: "10.3%",
-    whitespace: "",
+  },
+  {
+    address: assetAddrRecord["USDT"],
+    label: "USDT",
+    wallet_balance: 87,
+    select_native: 87,
+    select_usd: 87,
+    apy: "5.5%",
+  },
+  {
+    address: assetAddrRecord["HUG"],
+    label: "HUG",
+    wallet_balance: 12,
+    select_native: 109401,
+    select_usd: 12,
+    apy: "23.1%",
   },
 ];
 

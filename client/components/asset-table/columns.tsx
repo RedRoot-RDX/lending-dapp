@@ -2,9 +2,10 @@
 
 import { AssetName } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowUpDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
 export type Asset = {
   address: string;
   label: AssetName;
@@ -12,10 +13,26 @@ export type Asset = {
   select_native: number;
   select_usd: number;
   apy: string;
-  whitespace: string;
 };
 
 export const columns: ColumnDef<Asset>[] = [
+  {
+    id: "select",
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value: any) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: true,
+    enableHiding: false,
+    sortingFn: (rowA, rowB) => {
+      const aSelected = rowA.getIsSelected() ? 1 : 0;
+      const bSelected = rowB.getIsSelected() ? 1 : 0;
+      return bSelected - aSelected;
+    },
+  },
   {
     accessorKey: "label",
     header: "Assets",
@@ -35,12 +52,5 @@ export const columns: ColumnDef<Asset>[] = [
   {
     accessorKey: "apy",
     header: "APY",
-  },
-  {
-    accessorKey: "whitespace",
-    header: () => <div className="w-32 h-10 bg-red-500"></div>,
-    cell: ({ row }) => {
-      return <div className="w-32 h-10 bg-blue-500"></div>;
-    },
   },
 ];
