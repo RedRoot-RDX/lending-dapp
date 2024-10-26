@@ -1,7 +1,9 @@
 "use client";
 /* ------------------ Imports ----------------- */
-import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import * as React from "react"
+import { ColumnDef, flexRender, getCoreRowModel, useReactTable, ColumnFiltersState, getFilteredRowModel } from "@tanstack/react-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input"
 
 /* ----------------- Constants ---------------- */
 interface DataTableProps<TData, TValue> {
@@ -11,14 +13,30 @@ interface DataTableProps<TData, TValue> {
 
 /* ----------------- Component ---------------- */
 export function AssetTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  )
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    getFilteredRowModel: getFilteredRowModel(),
+    state: {
+      columnFilters,
+    },
   });
 
   return (
     <div className="rounded-md border">
+      <Input
+        placeholder="Find assets..."
+        value={(table.getColumn("label")?.getFilterValue() as string) ?? ""}
+        onChange={(event) =>
+          table.getColumn("label")?.setFilterValue(event.target.value)
+        }
+        className="max-w"
+      />
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

@@ -11,6 +11,7 @@ export type Asset = {
   wallet_balance: number;
   select_native: number;
   select_usd: number;
+  apy: string;
   whitespace: string;
 };
 
@@ -25,11 +26,15 @@ export const columns: ColumnDef<Asset>[] = [
   },
   {
     accessorKey: "select_native",
-    header: "Select (N)",
+    header: "Selected (Native)",
   },
   {
     accessorKey: "select_usd",
-    header: "Select (USD)",
+    header: "Selected (USD)",
+  },
+  {
+    accessorKey: "apy",
+    header: "APY",
   },
   {
     accessorKey: "whitespace",
