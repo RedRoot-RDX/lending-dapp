@@ -10,6 +10,7 @@ import {
   SortingState,
   getSortedRowModel,
   getFilteredRowModel,
+  RowSelectionState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -21,18 +22,17 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 
-/* ----------------- Constants ---------------- */
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
 }
 
-/* ----------------- Component ---------------- */
-export function AssetTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+export function AssetTable<TData, TValue>({
+  columns,
+  data,
+}: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: "select", desc: true }, // Start with "select" sorted descending to keep selected at top
-  ]);
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
   const table = useReactTable({
     data,
@@ -40,23 +40,23 @@ export function AssetTable<TData, TValue>({ columns, data }: DataTableProps<TDat
     getCoreRowModel: getCoreRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
-    onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
+    onRowSelectionChange: setRowSelection,
     state: {
       columnFilters,
-      sorting,
+      rowSelection,
     },
   });
 
-  // Apply sorting whenever the selected rows change
-  React.useEffect(() => {
-    const selectedRows = table.getSelectedRowModel().rows;
-    if (selectedRows.length > 0) {
-      setSorting([{ id: "select", desc: true }]);
-    } else {
-      setSorting([]);
-    }
-  }, [table.getSelectedRowModel().rows.map(row => row.id).join()]);
+  // Custom row sorting function
+  const sortedRows = React.useMemo(() => {
+    const rows = [...table.getRowModel().rows];
+    return rows.sort((a, b) => {
+      const aSelected = a.getIsSelected() ? 1 : 0;
+      const bSelected = b.getIsSelected() ? 1 : 0;
+      return bSelected - aSelected;
+    });
+  }, [table.getRowModel().rows, rowSelection]);
 
   return (
     <div className="rounded-md border">
@@ -66,7 +66,7 @@ export function AssetTable<TData, TValue>({ columns, data }: DataTableProps<TDat
         onChange={(event) =>
           table.getColumn("label")?.setFilterValue(event.target.value)
         }
-        className="max-w"
+        className="max-w-sm m-4"
       />
       <Table>
         <TableHeader>
@@ -86,8 +86,8 @@ export function AssetTable<TData, TValue>({ columns, data }: DataTableProps<TDat
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
+          {sortedRows.length ? (
+            sortedRows.map((row) => (
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && "selected"}

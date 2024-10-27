@@ -18,20 +18,16 @@ export type Asset = {
 export const columns: ColumnDef<Asset>[] = [
   {
     id: "select",
+    header: "Select assets", // Changed from checkbox to text header
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
-        onCheckedChange={(value: any) => row.toggleSelected(!!value)}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
       />
     ),
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: false,
-    sortingFn: (rowA, rowB) => {
-      const aSelected = rowA.getIsSelected() ? 1 : 0;
-      const bSelected = rowB.getIsSelected() ? 1 : 0;
-      return bSelected - aSelected;
-    },
   },
   {
     accessorKey: "label",
