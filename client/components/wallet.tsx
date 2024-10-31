@@ -1,11 +1,15 @@
 "use client";
-/* ------------------ Imports ----------------- */
+import dynamic from 'next/dynamic';
 
-/* ----------------- Component ---------------- */
+const WalletButton = dynamic(
+  () => import('./wallet-button').then((mod) => mod.WalletButton),
+  { ssr: false }
+);
+
 export function Wallet() {
   return (
     <div className="rounded-radix-connect-radius">
-      <div className="" dangerouslySetInnerHTML={{ __html: `<radix-connect-button />` }} />
+      <WalletButton />
     </div>
   );
 }

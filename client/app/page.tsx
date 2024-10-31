@@ -1,3 +1,5 @@
+"use client";
+
 /* ------------------ Imports ----------------- */
 import { Button } from "@/components/ui/button";
 import { FlipWords } from "@/components/ui/flip-words";

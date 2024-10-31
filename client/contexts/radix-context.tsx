@@ -47,15 +47,16 @@ export function RadixProvider({ children }: { children: React.ReactNode }) {
   // const [gatewayApi, setGatewayApi] = useState<RadixContextState["gatewayApi"]>(null);
 
   // Getting account state
-  rdt.walletApi.setRequestData(DataRequestBuilder.accounts().atLeast(1));
-  // const subscription =
-  rdt.walletApi.walletData$.subscribe((walletData) => {
-    // setAccounts(walletData.accounts);
-    if (accounts != walletData.accounts) {
-      console.log("[wallet.tsx] subscription data", walletData);
-      setAccounts(walletData.accounts);
-    }
-  });
+  if (rdt) {
+    rdt.walletApi.setRequestData(DataRequestBuilder.accounts().atLeast(1));
+    rdt.walletApi.walletData$.subscribe((walletData) => {
+      // setAccounts(walletData.accounts);
+      if (accounts != walletData.accounts) {
+        console.log("[wallet.tsx] subscription data", walletData);
+        setAccounts(walletData.accounts);
+      }
+    });
+  }
 
   // Context Provider
   const contextState: RadixContextState = {

@@ -25,6 +25,10 @@ interface ShootingStarsProps {
 }
 
 const getRandomStartPoint = () => {
+  if (typeof window == "undefined") {
+    return { x: 0, y: 0, angle: 45 };
+  }
+
   const side = Math.floor(Math.random() * 4);
   const offset = Math.random() * window.innerWidth;
 
@@ -56,6 +60,7 @@ export const ShootingStars: React.FC<ShootingStarsProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const createStar = () => {
       const { x, y, angle } = getRandomStartPoint();
       const newStar: ShootingStar = {
@@ -75,14 +80,18 @@ export const ShootingStars: React.FC<ShootingStarsProps> = ({
 
     createStar();
 
-    return () => {};
+    return () => { };
   }, [minSpeed, maxSpeed, minDelay, maxDelay]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const moveStar = () => {
       if (star) {
         setStar((prevStar) => {
           if (!prevStar) return null;
+          if (typeof window == "undefined") {
+            return null;
+          }
           const newX =
             prevStar.x +
             prevStar.speed * Math.cos((prevStar.angle * Math.PI) / 180);
@@ -127,9 +136,8 @@ export const ShootingStars: React.FC<ShootingStarsProps> = ({
           width={starWidth * star.scale}
           height={starHeight}
           fill="url(#gradient)"
-          transform={`rotate(${star.angle}, ${
-            star.x + (starWidth * star.scale) / 2
-          }, ${star.y + starHeight / 2})`}
+          transform={`rotate(${star.angle}, ${star.x + (starWidth * star.scale) / 2
+            }, ${star.y + starHeight / 2})`}
         />
       )}
       <defs>
