@@ -15,7 +15,7 @@ This repository contains two primary components:
 
 [Demo](youtube.com)
 
-The front-end is available ![here](https://radish.on-fleek.app/).
+The front-end is available [here](https://radish.on-fleek.app/).
 
 ## Features
 
