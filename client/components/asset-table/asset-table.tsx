@@ -11,6 +11,7 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   RowSelectionState,
+  Updater,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -25,14 +26,17 @@ import { Input } from "@/components/ui/input";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  rowSelection: RowSelectionState;
+  onRowSelectionChange: (updaterOrValue: Updater<RowSelectionState>) => void;
 }
 
 export function AssetTable<TData, TValue>({
   columns,
   data,
+  rowSelection,
+  onRowSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
   const table = useReactTable({
     data,
@@ -41,7 +45,7 @@ export function AssetTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onRowSelectionChange: setRowSelection,
+    onRowSelectionChange: onRowSelectionChange,
     state: {
       columnFilters,
       rowSelection,

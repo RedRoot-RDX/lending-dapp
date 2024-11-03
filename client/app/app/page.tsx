@@ -8,7 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
 import { assetAddrRecord } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { RowSelectionState } from "@tanstack/react-table";
+import React from "react";
 
 /* ----------------- Constants ---------------- */
 const data: Asset[] = [
@@ -41,6 +43,9 @@ const data: Asset[] = [
 /* ------------------- Page ------------------- */
 export default function App() {
   const { accounts } = useRadixContext();
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+
+  const hasSelectedAssets = Object.keys(rowSelection).length > 0;
 
   console.log("env", process.env);
 
@@ -79,7 +84,7 @@ export default function App() {
         </Card>
 
         {/* ------------- Collateral Column ------------ */}
-        <div className="flex flex-col gap-4">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Your Collateral</CardTitle>
@@ -94,13 +99,20 @@ export default function App() {
               <div>No Collateral</div>
             </CardContent>
           </Card>
-          <SupplyMetrics />
+          <div className="h-20">
+            <SupplyMetrics show={hasSelectedAssets} />
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>Available Collateral</CardTitle>
             </CardHeader>
             <CardContent>
-              <AssetTable columns={columns} data={data} />
+              <AssetTable 
+                columns={columns} 
+                data={data} 
+                rowSelection={rowSelection}
+                onRowSelectionChange={setRowSelection}
+              />
             </CardContent>
           </Card>
         </div>
