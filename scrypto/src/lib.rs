@@ -1,18 +1,13 @@
 /* ------------------ Imports ----------------- */
+// Modules
+mod shared;
+mod user;
+// Usages
 use scrypto::prelude::*;
+use shared::{AddrToAmount, LazySet};
+use user::Borrower;
 
-/* ------------------- Misc. ------------------ */
-type AddrToAmount = HashMap<ResourceAddress, Decimal>;
-type LazySet<T> = KeyValueStore<T, ()>;
-
-#[derive(Debug, NonFungibleData, ScryptoSbor, Clone)]
-struct Borrower {
-    #[mutable]
-    collateral: AddrToAmount, // Potentially should be replaced with KeyValueStore
-    #[mutable]
-    debt: Decimal,
-}
-
+/* ------------------ Events ------------------ */
 #[derive(ScryptoSbor, ScryptoEvent)]
 struct EstimateLoanEvent {
     value: Decimal,
@@ -358,7 +353,13 @@ mod radish {
                     "No collateral vault for resource {:?}",
                     address
                 );
-                assert!(self.collateral_vaults.get(&address).unwrap().amount() >= amount, "Insufficient collateral in vault for resource {:?} to pay out {:?} ({:?} stored)", address, amount, self.collateral_vaults.get(&address).unwrap().amount());
+                assert!(
+          self.collateral_vaults.get(&address).unwrap().amount() >= amount,
+          "Insufficient collateral in vault for resource {:?} to pay out {:?} ({:?} stored)",
+          address,
+          amount,
+          self.collateral_vaults.get(&address).unwrap().amount()
+        );
 
                 let bucket = self
                     .collateral_vaults
