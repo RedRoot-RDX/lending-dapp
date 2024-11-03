@@ -3,7 +3,8 @@
 import { AssetForm } from "@/components/asset-form";
 import { AssetTable } from "@/components/asset-table/asset-table";
 import { Asset, columns } from "@/components/asset-table/columns";
-import SupplyMetrics from '@/components/supply-metrics';
+import SupplyConfirmation from '@/components/supply-confirmation';
+import BorrowMetrics from '@/components/borrow-metrics';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
@@ -11,6 +12,7 @@ import { assetAddrRecord } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { RowSelectionState } from "@tanstack/react-table";
 import React from "react";
+import { Button } from "@/components/ui/button";
 
 /* ----------------- Constants ---------------- */
 const data: Asset[] = [
@@ -40,12 +42,17 @@ const data: Asset[] = [
   },
 ];
 
+const supplyData = data;
+const borrowData = data;
+
 /* ------------------- Page ------------------- */
 export default function App() {
   const { accounts } = useRadixContext();
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [supplyRowSelection, setSupplyRowSelection] = React.useState<RowSelectionState>({});
+  const [borrowRowSelection, setBorrowRowSelection] = React.useState<RowSelectionState>({});
 
-  const hasSelectedAssets = Object.keys(rowSelection).length > 0;
+  const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
+  const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
 
   console.log("env", process.env);
 
@@ -84,64 +91,119 @@ export default function App() {
         </Card>
 
         {/* ------------- Collateral Column ------------ */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           <Card>
             <CardHeader>
               <CardTitle>Your Collateral</CardTitle>
-              <CardDescription>
-                Total supply: $0.0
-              </CardDescription>
-              <CardDescription>
-                Total APY: 10.3%
-              </CardDescription>
+              <div className="flex justify-between items-center mt-2">
+                <div className="space-y-1">
+                  <CardDescription>Total Supply: $0.0</CardDescription>
+                  <CardDescription>Total APY: 10.3%</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div>No Collateral</div>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">Assets</th>
+                    <th className="text-left py-2">Supplied</th>
+                    <th className="text-left py-2">Supply</th>
+                    <th className="text-left py-2">APY</th>
+                    <th className="text-right py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {supplyData.map((asset) => (
+                    <tr key={asset.label} className="border-b">
+                      <td className="py-4 flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full" /> {/* Asset icon */}
+                        {asset.label}
+                      </td>
+                      <td>{asset.select_native}</td>
+                      <td>${asset.select_usd}</td>
+                      <td>{asset.apy}</td>
+                      <td className="text-right">
+                        <Button variant="secondary">Withdraw</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </CardContent>
           </Card>
-          <div className="h-20">
-            <SupplyMetrics show={hasSelectedAssets} />
-          </div>
+          <SupplyConfirmation show={hasSelectedSupplyAssets} />
           <Card>
             <CardHeader>
               <CardTitle>Available Collateral</CardTitle>
             </CardHeader>
             <CardContent>
-              <AssetTable 
-                columns={columns} 
-                data={data} 
-                rowSelection={rowSelection}
-                onRowSelectionChange={setRowSelection}
+              <AssetTable
+                columns={columns}
+                data={supplyData}
+                rowSelection={supplyRowSelection}
+                onRowSelectionChange={setSupplyRowSelection}
               />
             </CardContent>
           </Card>
         </div>
         {/* --------------- Borrow Column -------------- */}
-        <div className="flex flex-col gap-4">
+        <div className="space-y-8">
           <Card>
             <CardHeader>
               <CardTitle>Your Borrows</CardTitle>
-              <CardDescription>
-                Total debt: $0.0
-              </CardDescription>
-              <CardDescription>
-                Borrowing power used: 10.3%
-              </CardDescription>
-              <CardDescription>
-                APY: 20.1%
-              </CardDescription>
+              <div className="flex justify-between items-center mt-2">
+                <div className="space-y-1">
+                  <CardDescription>Total Debt: $0.0</CardDescription>
+                  <CardDescription>Total APY: 0%</CardDescription>
+                </div>
+                <CardDescription>Borrowing Power Used: 51.4%</CardDescription>
+              </div>
             </CardHeader>
             <CardContent>
-              <div>No Assets Borrowed</div>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">Assets</th>
+                    <th className="text-left py-2">Borrowed</th>
+                    <th className="text-left py-2">Debt</th>
+                    <th className="text-left py-2">APY</th>
+                    <th className="text-right py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {borrowData.map((asset) => (
+                    <tr key={asset.label} className="border-b">
+                      <td className="py-4 flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full" /> {/* Asset icon */}
+                        {asset.label}
+                      </td>
+                      <td>{asset.select_native}</td>
+                      <td>${asset.select_usd}</td>
+                      <td>{asset.apy}</td>
+                      <td className="text-right">
+                        <Button variant="secondary">Repay</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Available Borrows</CardTitle>
+              <CardTitle>
+                Available Borrows
+                <BorrowMetrics show={hasSelectedBorrowAssets} />
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p>Card Content</p>
-              {/* <AssetForm /> */}
+              <AssetTable
+                columns={columns}
+                data={borrowData}
+                rowSelection={borrowRowSelection}
+                onRowSelectionChange={setBorrowRowSelection}
+              />
             </CardContent>
           </Card>
         </div>

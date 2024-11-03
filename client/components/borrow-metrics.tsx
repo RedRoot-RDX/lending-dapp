@@ -1,18 +1,18 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, ArrowUp } from 'lucide-react';
+import { ArrowUp, ArrowRight } from 'lucide-react';
 
-interface SupplyMetricsProps {
+interface BorrowMetricsProps {
   show: boolean;
 }
 
-const SupplyMetrics = ({ show }: SupplyMetricsProps) => {
+const BorrowMetrics = ({ show }: BorrowMetricsProps) => {
   if (!show) return null;
   
   return (
-    <div className="flex items-center w-full justify-center gap-12">
-      <div className="flex justify-center h-8 relative">
+    <div className="flex items-center w-full justify-center gap-8">
+      <div className="flex justify-center h-12 relative">
         <div className="relative h-full flex items-center">
           <ArrowUp
             size={48}
@@ -25,20 +25,20 @@ const SupplyMetrics = ({ show }: SupplyMetricsProps) => {
         <CardContent className="py-4">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-xs text-gray-600">Net Supply</div>
+              <div className="text-xs text-gray-600">Net Debt</div>
               <div className="text-lg font-semibold">$0.0</div>
             </div>
             <div className="flex items-center gap-2">
               <div className="text-xs text-gray-600">Health Factor</div>
               <div className="flex items-center gap-1">
-                <span className="text-red-500 font-medium">1.0</span>
-                <ArrowRight size={14} className="text-gray-400" />
                 <span className="text-green-500 font-medium">2.0</span>
+                <ArrowRight size={14} className="text-gray-400" />
+                <span className="text-red-500 font-medium">1.0</span>
               </div>
             </div>
           </div>
           <Button className="w-full bg-black text-white hover:bg-gray-800 h-8 text-sm">
-            Confirm Supply
+            Confirm Borrow
           </Button>
         </CardContent>
       </Card>
@@ -46,4 +46,4 @@ const SupplyMetrics = ({ show }: SupplyMetricsProps) => {
   );
 };
 
-export default SupplyMetrics;
+export default BorrowMetrics; 
