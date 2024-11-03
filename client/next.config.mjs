@@ -4,6 +4,7 @@ const nextConfig = {
     BASE_URL: process.env.BASE_URL,
   },
   output: 'export',
+  images: { unoptimized: true }
 };
 
 export default nextConfig;

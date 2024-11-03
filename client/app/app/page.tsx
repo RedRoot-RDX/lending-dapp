@@ -3,6 +3,7 @@
 import { AssetForm } from "@/components/asset-form";
 import { AssetTable } from "@/components/asset-table/asset-table";
 import { Asset, columns } from "@/components/asset-table/columns";
+import SupplyMetrics from '@/components/supply-metrics';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
@@ -93,6 +94,7 @@ export default function App() {
               <div>No Collateral</div>
             </CardContent>
           </Card>
+          <SupplyMetrics />
           <Card>
             <CardHeader>
               <CardTitle>Available Collateral</CardTitle>

@@ -47,6 +47,21 @@ const config = {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
         },
+        animation: {
+          bounce: 'bounce 1s infinite',
+        },
+        keyframes: {
+          bounce: {
+            '0%, 100%': {
+              transform: 'translateY(25%)',
+              animationTimingFunction: 'cubic-bezier(0.8,0,1,1)',
+            },
+            '50%': {
+              transform: 'none',
+              animationTimingFunction: 'cubic-bezier(0,0,0.2,1)',
+            },
+          },
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -71,6 +86,7 @@ const config = {
     },
   },
   plugins: [require("tailwindcss-animate")],
+
 } satisfies Config;
 
 export default config;
