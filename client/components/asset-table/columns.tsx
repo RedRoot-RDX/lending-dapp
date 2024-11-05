@@ -3,8 +3,6 @@
 import { AssetName } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export type Asset = {
   address: string;

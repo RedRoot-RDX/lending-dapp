@@ -1,20 +1,16 @@
 "use client";
-/* ------------------ Imports ----------------- */
-import { AssetForm } from "@/components/asset-form";
-import { AssetTable } from "@/components/asset-table/asset-table";
-import { Asset, columns } from "@/components/asset-table/columns";
-import SupplyConfirmation from '@/components/supply-confirmation';
-import BorrowMetrics from '@/components/borrow-metrics';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useRadixContext } from "@/contexts/provider";
-import { gatewayApi, rdt } from "@/lib/radix";
-import { assetAddrRecord } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { RowSelectionState } from "@tanstack/react-table";
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AssetTable } from "@/components/asset-table/asset-table";
+import { Asset, columns } from "@/components/asset-table/columns";
+import SupplyDialog from "@/components/supply-dialog";
+import { useRadixContext } from "@/contexts/provider";
+import { gatewayApi, rdt } from "@/lib/radix";
+import { assetAddrRecord } from "@/lib/utils";
 
-/* ----------------- Constants ---------------- */
 const data: Asset[] = [
   {
     address: assetAddrRecord["XRD"],
@@ -45,16 +41,14 @@ const data: Asset[] = [
 const supplyData = data;
 const borrowData = data;
 
-/* ------------------- Page ------------------- */
 export default function App() {
   const { accounts } = useRadixContext();
   const [supplyRowSelection, setSupplyRowSelection] = React.useState<RowSelectionState>({});
   const [borrowRowSelection, setBorrowRowSelection] = React.useState<RowSelectionState>({});
+  const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
 
   const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
   const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
-
-  console.log("env", process.env);
 
   useEffect(() => {
     console.log("Account", accounts);
@@ -62,14 +56,24 @@ export default function App() {
     console.log("GatewayApi", gatewayApi);
   }, [accounts]);
 
+  const getSelectedAssets = () => {
+    return Object.keys(supplyRowSelection).map(index => supplyData[Number(index)]);
+  };
+
+  const previewSupply = () => {
+    setIsPreviewDialogOpen(true);
+  };
+
+  const handleSupplyConfirm = () => {
+    // Handle supply confirmation logic here
+    console.log("Supply confirmed for assets:", getSelectedAssets());
+    setIsPreviewDialogOpen(false);
+  };
+
   return (
     <main className="container py-4 flex-grow">
-      {/* <Card className="bg-amber-200 p-4 mb-6">
-        <h1 className="text-xl font-bold mb-2">DEV STUFF</h1>
-        Wallet Address [0]: {accounts != null && accounts.length > 0 ? accounts[0].address : "none connected"}
-      </Card> */}
       <div className="grid grid-cols-2 gap-4">
-        {/* ------------- Statistics Header ------------ */}
+        {/* Statistics Header */}
         <Card className="col-span-2">
           <CardHeader>
             <CardTitle>Overall Statistics</CardTitle>
@@ -90,15 +94,18 @@ export default function App() {
           </CardContent>
         </Card>
 
-        {/* ------------- Collateral Column ------------ */}
+        {/* Collateral Column */}
         <div className="space-y-8">
+          {/* Your Collateral Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Your Collateral</CardTitle>
-              <div className="flex justify-between items-center mt-2">
-                <div className="space-y-1">
-                  <CardDescription>Total Supply: $0.0</CardDescription>
-                  <CardDescription>Total APY: 10.3%</CardDescription>
+              <div className="grid grid-cols-2">
+                <CardTitle>Your Collateral</CardTitle>
+                <div className="flex justify-end">
+                  <div className="space-y-0 text-left min-h-[60px]">
+                    <CardDescription>Total Supply: $0.0</CardDescription>
+                    <CardDescription>Total APY: 10.3%</CardDescription>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -117,7 +124,7 @@ export default function App() {
                   {supplyData.map((asset) => (
                     <tr key={asset.label} className="border-b">
                       <td className="py-4 flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full" /> {/* Asset icon */}
+                        <div className="w-8 h-8 bg-gray-200 rounded-full" />
                         {asset.label}
                       </td>
                       <td>{asset.select_native}</td>
@@ -132,10 +139,16 @@ export default function App() {
               </table>
             </CardContent>
           </Card>
-          <SupplyConfirmation show={hasSelectedSupplyAssets} />
+
+          {/* Available Collateral Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Available Collateral</CardTitle>
+              <div className="grid grid-cols-2 gap-4">
+                <CardTitle>Available Collateral</CardTitle>
+                {hasSelectedSupplyAssets && (
+                  <Button onClick={previewSupply}>Preview Supply</Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <AssetTable
@@ -147,17 +160,21 @@ export default function App() {
             </CardContent>
           </Card>
         </div>
-        {/* --------------- Borrow Column -------------- */}
+
+        {/* Borrow Column */}
         <div className="space-y-8">
+          {/* Your Borrows Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Your Borrows</CardTitle>
-              <div className="flex justify-between items-center mt-2">
-                <div className="space-y-1">
-                  <CardDescription>Total Debt: $0.0</CardDescription>
-                  <CardDescription>Total APY: 0%</CardDescription>
+              <div className="grid grid-cols-2">
+                <CardTitle>Your Borrows</CardTitle>
+                <div className="flex justify-end">
+                  <div className="space-y-0 text-left min-h-[60px]">
+                    <CardDescription>Total Debt: $0.0</CardDescription>
+                    <CardDescription>Total APY: 0%</CardDescription>
+                    <CardDescription>Borrowing Power Used: 51.4%</CardDescription>
+                  </div>
                 </div>
-                <CardDescription>Borrowing Power Used: 51.4%</CardDescription>
               </div>
             </CardHeader>
             <CardContent>
@@ -175,7 +192,7 @@ export default function App() {
                   {borrowData.map((asset) => (
                     <tr key={asset.label} className="border-b">
                       <td className="py-4 flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full" /> {/* Asset icon */}
+                        <div className="w-8 h-8 bg-gray-200 rounded-full" />
                         {asset.label}
                       </td>
                       <td>{asset.select_native}</td>
@@ -190,12 +207,11 @@ export default function App() {
               </table>
             </CardContent>
           </Card>
+
+          {/* Available Borrows Card */}
           <Card>
             <CardHeader>
-              <CardTitle>
-                Available Borrows
-                <BorrowMetrics show={hasSelectedBorrowAssets} />
-              </CardTitle>
+              <CardTitle>Available Borrows</CardTitle>
             </CardHeader>
             <CardContent>
               <AssetTable
@@ -208,6 +224,12 @@ export default function App() {
           </Card>
         </div>
       </div>
+
+      <SupplyDialog
+        isOpen={isPreviewDialogOpen}
+        onClose={() => setIsPreviewDialogOpen(false)}
+        onConfirm={handleSupplyConfirm}
+      />
     </main>
   );
 }
