@@ -1217,6 +1217,7 @@ version = "1.0.0"
 dependencies = [
  "scrypto 1.2.0",
  "scrypto-test",
+ "scrypto_avltree",
 ]
 
 [[package]]
@@ -1292,6 +1293,15 @@ dependencies = [
  "scrypto-compiler",
  "serde_json",
  "wabt",
+]
+
+[[package]]
+name = "scrypto_avltree"
+version = "1.2.0"
+source = "git+https://github.com/ociswap/scrypto-avltree?tag=v1.2.0#a6d33fc91fdc91cfe6657bbc460ae5ad4e8a3c2e"
+dependencies = [
+ "sbor",
+ "scrypto 1.2.0",
 ]
 
 [[package]]

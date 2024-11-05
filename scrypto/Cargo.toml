@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 scrypto = { version = "1.2.0" }
+scrypto_avltree = { git = "https://github.com/ociswap/scrypto-avltree", tag = "v1.2.0" }
 
 [dev-dependencies]
 scrypto-test = { version = "1.2.0" }
