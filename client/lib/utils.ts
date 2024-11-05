@@ -26,15 +26,15 @@ export const HUG_Resource: string = process.env.NEXT_PUBLIC_HUG_ADDR || "";
 export const USDT_Resource: string = process.env.NEXT_PUBLIC_USDT_ADDR || "";
 
 // Asset Data
-export const AssetNames = ["RSH", "XRD", "HUG", "USDT", "IDFK"] as const;
+export const AssetNames = ["XRD", "USDC", "USDT", "DAI", "HUG"] as const;
 export type AssetName = (typeof AssetNames)[number];
 
 export const assetAddrRecord: Record<AssetName, string> = {
-  RSH: RSH_Resource,
-  XRD: XRD_Resource,
-  HUG: HUG_Resource,
-  USDT: USDT_Resource,
-  IDFK: "resource_idfk",
+  XRD: "resource_xrd",
+  USDC: "resource_usdc",
+  USDT: "resource_usdt",
+  DAI: "resource_dai",
+  HUG: "resource_hug",
 };
 
 export type Asset = {

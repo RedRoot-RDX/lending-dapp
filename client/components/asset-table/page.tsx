@@ -38,7 +38,12 @@ export default async function DemoPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <AssetTable columns={columns} data={data} />
+      <AssetTable 
+        columns={columns} 
+        data={data}
+        rowSelection={{}}
+        onRowSelectionChange={() => {}}
+      />
     </div>
   );
 }
