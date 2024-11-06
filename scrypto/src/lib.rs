@@ -1,4 +1,6 @@
 /* ------------------ Imports ----------------- */
+mod shared;
+
 use scrypto::prelude::*;
 use scrypto_avltree::AvlTree;
 
@@ -115,20 +117,18 @@ mod radish {
         pub fn add_asset(&mut self, asset: ResourceAddress) {
             // Pre-run Checks
             assert!(!asset.is_fungible(), "Provided asset must be fungible.");
-            assert!(self.validate_asset(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
+            assert!(self.validate_fungible(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
 
             // Update the asset list
             self.asset_list.insert(self.asset_list_length(), asset);
             // If the asset does not already have a vault, add one
-            if !self.validate_asset(asset) {
+            if !self.validate_fungible(asset) {
                 self.vaults.insert(asset, Vault::new(asset));
             }
         }
 
         /// Removes a (fungible) asset from the asset list, but does not remove its vault
-        ///
-        /// ! Can only remove an asset whose vault is empty
-        /// ! This function cannot destroy a vault, only removes it from the assets list and thus prevents it from being used
+        // ! Asset can only be removed if vault empty; vault itself not deleted
         pub fn remove_asset(&mut self, asset: ResourceAddress) {
             // Pre-run Checks
             assert!(!asset.is_fungible(), "Provided asset must be fungible.");
@@ -156,8 +156,14 @@ mod radish {
         }
 
         /* -------------- Private Methods ------------- */
-        fn validate_asset(&self, addr: ResourceAddress) -> bool {
-            info!("[validate_asset] Validating asset with address {:?}", asset);
+        /// Checks
+        fn validate_fungible(&self, addr: ResourceAddress) -> bool {
+            info!("[validate_asset] Validating asset with address {:?}", addr);
+
+            if !addr.is_fungible() {
+                info!("[validate_asset] Asset {:?} is not fungible", addr);
+                return false;
+            }
 
             // Check that a vault exists for the given address
             if self.vaults.get(&addr).is_none() {
