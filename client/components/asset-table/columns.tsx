@@ -43,11 +43,7 @@ export const columns: ColumnDef<Asset>[] = [
   },
   {
     accessorKey: "select_native",
-    header: "Selected (Native)",
-  },
-  {
-    accessorKey: "select_usd",
-    header: "Selected (USD)",
+    header: "Selected Amount",
   },
   {
     accessorKey: "apy",
@@ -56,18 +52,18 @@ export const columns: ColumnDef<Asset>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      const [isOpen, setIsOpen] = React.useState(false);
+      const isExpanded = row.getIsExpanded();
       
       return (
-        <CollapsibleTrigger asChild onClick={() => setIsOpen(!isOpen)}>
-          <Button variant="ghost" size="sm">
-            {isOpen ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </Button>
-        </CollapsibleTrigger>
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => {
+            row.toggleExpanded();
+          }}
+        >
+          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
       );
     },
   },

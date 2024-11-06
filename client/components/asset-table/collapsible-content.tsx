@@ -47,19 +47,31 @@ export function AssetCollapsibleContent({ asset }: CollapsibleContentProps) {
           </ResponsiveContainer>
         </ChartContainer>
       </div>
-      <div className="flex flex-col space-y-2">
-        <div className="flex items-center justify-between bg-gray-100 p-2 rounded">
-          <Input 
-            type="number" 
-            placeholder="0.0"
-            className="bg-transparent border-none flex-1"
-          />
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Wallet balance 0.0</span>
-            <Button variant="ghost" size="sm" className="font-medium">
-              Max
+      <div className="h-[200px] w-full">
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            Amount to deposit
+          </label>
+          <div className="relative">
+            <Input 
+              type="number" 
+              placeholder="0.0" 
+              className="pr-16"
+            />
+            <Button 
+              variant="ghost" 
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs"
+              onClick={() => {
+                // Handle setting max amount
+                // You can set this to asset.amount
+              }}
+            >
+              MAX
             </Button>
           </div>
+          <p className="text-sm text-muted-foreground">
+            ≈ $0.00 USD
+          </p>
         </div>
       </div>
     </div>

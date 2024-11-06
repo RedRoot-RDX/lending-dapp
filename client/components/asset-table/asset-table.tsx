@@ -7,11 +7,10 @@ import {
   getCoreRowModel,
   useReactTable,
   ColumnFiltersState,
-  SortingState,
-  getSortedRowModel,
   getFilteredRowModel,
   RowSelectionState,
   Updater,
+  TableState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -25,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { AssetCollapsibleContent } from "./collapsible-content";
 import { Asset } from "@/types/asset";
@@ -44,6 +42,38 @@ export function AssetTable<TData extends Asset, TValue>({
   onRowSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [expandedRows, setExpandedRows] = React.useState<Record<string, boolean>>({});
+
+  // Handle row selection changes
+  const handleRowSelectionChange = (updaterOrValue: Updater<RowSelectionState>) => {
+    const newSelection = typeof updaterOrValue === 'function' 
+      ? updaterOrValue(rowSelection)
+      : updaterOrValue;
+
+    // Update expanded rows based on selection state
+    setExpandedRows(prev => {
+      const updatedRows: Record<string, boolean> = {};
+      
+      // First, set all rows to collapsed
+      Object.keys(prev).forEach(rowId => {
+        updatedRows[rowId] = false;
+      });
+      
+      // Find the last selected row and expand only that one
+      const selectedRowIds = Object.entries(newSelection)
+        .filter(([_, isSelected]) => isSelected)
+        .map(([id]) => id);
+      
+      if (selectedRowIds.length > 0) {
+        const lastSelectedId = selectedRowIds[selectedRowIds.length - 1];
+        updatedRows[lastSelectedId] = true;
+      }
+
+      return updatedRows;
+    });
+    
+    onRowSelectionChange(newSelection);
+  };
 
   const table = useReactTable({
     data,
@@ -51,11 +81,40 @@ export function AssetTable<TData extends Asset, TValue>({
     getCoreRowModel: getCoreRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onRowSelectionChange: onRowSelectionChange,
+    onRowSelectionChange: handleRowSelectionChange,
+    enableExpanding: true,
+    onExpandedChange: (updaterOrValue) => {
+      const newValue = typeof updaterOrValue === 'function'
+        ? updaterOrValue(expandedRows)
+        : updaterOrValue;
+      
+      const expandedState = typeof newValue === 'boolean' 
+        ? {} 
+        : newValue as Record<string, boolean>;
+      
+      // Always ensure only one row is expanded
+      const expandedRowIds = Object.entries(expandedState)
+        .filter(([_, expanded]) => expanded)
+        .map(([id]) => id);
+      
+      // Create a new state with all rows collapsed
+      const newState: Record<string, boolean> = {};
+      Object.keys(expandedState).forEach(id => {
+        newState[id] = false;
+      });
+      
+      // If there's an expanded row, only expand the last one
+      if (expandedRowIds.length > 0) {
+        const lastExpandedId = expandedRowIds[expandedRowIds.length - 1];
+        newState[lastExpandedId] = true;
+      }
+      
+      setExpandedRows(newState);
+    },
     state: {
       columnFilters,
       rowSelection,
+      expanded: expandedRows,
     },
   });
 
@@ -68,6 +127,17 @@ export function AssetTable<TData extends Asset, TValue>({
       return bSelected - aSelected;
     });
   }, [table.getRowModel().rows, rowSelection]);
+
+  const handleExpansionChange = (rowId: string) => {
+    setExpandedRows(prev => {
+      // If clicking on already expanded row, allow it to close
+      if (prev[rowId]) {
+        return {};
+      }
+      // Otherwise, expand the clicked row and close others
+      return { [rowId]: true };
+    });
+  };
 
   return (
     <div className="rounded-md border">
@@ -99,7 +169,11 @@ export function AssetTable<TData extends Asset, TValue>({
         <TableBody>
           {sortedRows.length ? (
             sortedRows.map((row) => (
-              <Collapsible key={row.id} asChild>
+              <Collapsible
+                key={row.id}
+                asChild
+                open={expandedRows[row.id]}
+              >
                 <>
                   <TableRow data-state={row.getIsSelected() && "selected"}>
                     {row.getVisibleCells().map((cell) => (
