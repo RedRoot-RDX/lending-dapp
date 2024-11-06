@@ -10,7 +10,7 @@ import {
   getFilteredRowModel,
   RowSelectionState,
   Updater,
-  getPaginationRowModel,
+  TableState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -27,8 +27,6 @@ import {
 } from "@/components/ui/collapsible";
 import { AssetCollapsibleContent } from "./collapsible-content";
 import { Asset } from "@/types/asset";
-import { Button } from "../ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface DataTableProps<TData extends Asset, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -43,8 +41,23 @@ export function AssetTable<TData extends Asset, TValue>({
   rowSelection,
   onRowSelectionChange,
 }: DataTableProps<TData, TValue>) {
+  const [tableData, setTableData] = React.useState(data);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expandedRows, setExpandedRows] = React.useState<Record<string, boolean>>({});
+
+  const handleAmountChange = (address: string, amount: number) => {
+    setTableData(current =>
+      current.map(row =>
+        row.address === address
+          ? { ...row, select_native: amount }
+          : row
+      )
+    );
+  };
+
+  const handleConfirm = () => {
+    setExpandedRows({}); // Collapse all rows
+  };
 
   // Handle row selection changes
   const handleRowSelectionChange = (updaterOrValue: Updater<RowSelectionState>) => {
@@ -78,13 +91,12 @@ export function AssetTable<TData extends Asset, TValue>({
   };
 
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: handleRowSelectionChange,
-    getPaginationRowModel: getPaginationRowModel(),
     enableExpanding: true,
     onExpandedChange: (updaterOrValue) => {
       const newValue = typeof updaterOrValue === 'function'
@@ -118,10 +130,6 @@ export function AssetTable<TData extends Asset, TValue>({
       columnFilters,
       rowSelection,
       expanded: expandedRows,
-      pagination: {
-        pageSize: 10,
-        pageIndex: 0,
-      },
     },
   });
 
@@ -193,7 +201,11 @@ export function AssetTable<TData extends Asset, TValue>({
                     <TableRow>
                       <TableCell colSpan={columns.length}>
                         <div className="p-4 bg-gray-100 rounded-lg">
-                          <AssetCollapsibleContent asset={row.original} />
+                          <AssetCollapsibleContent 
+                            asset={row.original} 
+                            onAmountChange={(amount) => handleAmountChange(row.original.address, amount)}
+                            onConfirm={handleConfirm}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -210,28 +222,6 @@ export function AssetTable<TData extends Asset, TValue>({
           )}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-end space-x-2 p-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex items-center gap-1 text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of{" "}
-          {table.getPageCount()}
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }

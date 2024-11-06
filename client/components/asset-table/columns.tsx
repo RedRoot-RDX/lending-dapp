@@ -15,7 +15,6 @@ export type Asset = {
   label: AssetName;
   wallet_balance: number;
   select_native: number;
-  select_usd: number;
   apy: string;
 };
 
@@ -44,6 +43,10 @@ export const columns: ColumnDef<Asset>[] = [
   {
     accessorKey: "select_native",
     header: "Selected Amount",
+    cell: ({ row }) => {
+      const amount = row.getValue("select_native");
+      return amount ? Number(amount).toFixed(2) : "0.00";
+    }
   },
   {
     accessorKey: "apy",

@@ -25,9 +25,44 @@ interface Asset {
 
 interface CollapsibleContentProps {
   asset: Asset;
+  onAmountChange: (amount: number) => void;
+  onConfirm: () => void;
 }
 
-export function AssetCollapsibleContent({ asset }: CollapsibleContentProps) {
+export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: CollapsibleContentProps) {
+  const [tempAmount, setTempAmount] = React.useState<string>("");
+  const [error, setError] = React.useState<string>("");
+
+  const handleAmountChange = (value: string) => {
+    setTempAmount(value);
+    if (error) setError("");
+  };
+
+  const handleMaxClick = () => {
+    const maxAmount = asset.wallet_balance.toString();
+    setTempAmount(maxAmount);
+    setError("");
+  };
+
+  const handleConfirm = () => {
+    const numericValue = parseFloat(tempAmount) || 0;
+    
+    if (numericValue <= 0) {
+      setError("Amount must be greater than 0");
+      return;
+    }
+
+    if (numericValue > asset.wallet_balance) {
+      setError("Amount cannot exceed wallet balance");
+      return;
+    }
+
+    onAmountChange(numericValue);
+    onConfirm();
+    setTempAmount("");
+    setError("");
+  };
+
   return (
     <div className="grid grid-cols-2 gap-4">
       <div className="h-[200px] w-full">
@@ -56,22 +91,35 @@ export function AssetCollapsibleContent({ asset }: CollapsibleContentProps) {
             <Input 
               type="number" 
               placeholder="0.0" 
-              className="pr-16"
+              className={`pr-16 ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
+              value={tempAmount}
+              onChange={(e) => handleAmountChange(e.target.value)}
+              min={0}
+              max={asset.wallet_balance}
             />
             <Button 
               variant="ghost" 
               className="absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs"
-              onClick={() => {
-                // Handle setting max amount
-                // You can set this to asset.amount
-              }}
+              onClick={handleMaxClick}
             >
               MAX
             </Button>
           </div>
+          {error && (
+            <p className="text-sm text-red-500 font-medium">
+              {error}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
-            ≈ $0.00 USD
+            ≈ ${(parseFloat(tempAmount) || 0).toFixed(2)} USD
           </p>
+          <Button 
+            onClick={handleConfirm}
+            className="w-full"
+            disabled={!!error || !tempAmount || parseFloat(tempAmount) <= 0}
+          >
+            Confirm Amount
+          </Button>
         </div>
       </div>
     </div>
