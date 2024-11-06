@@ -5,10 +5,8 @@ use scrypto_avltree::AvlTree;
 /* ----------------- Blueprint ---------------- */
 #[blueprint]
 mod radish {
-    /* ------------ Role Authorization ------------ */
     enable_method_auth! {
         roles {
-            owner => updatable_by: [];
             admin => updatable_by: [OWNER];
         },
         methods {
@@ -17,7 +15,6 @@ mod radish {
         }
     }
 
-    /* -------------- Component Data -------------- */
     struct Radish {
         // Asset Storage
         asset_list: AvlTree<Decimal, ResourceAddress>,
@@ -25,7 +22,7 @@ mod radish {
     }
 
     impl Radish {
-        /* -------------- Public Methods -------------- */
+        /* --------------- Public Methods -------------- */
         pub fn instantiate() -> (Global<Radish>, Bucket) {
             // Keep track of the number of assets supported by Radish
             let mut _asset_count: Decimal = dec!(-1);
@@ -34,7 +31,7 @@ mod radish {
                 _asset_count
             };
 
-            /* --------------- Authorization -------------- */
+            //. Authorization
             // Component Owner
             let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_NONE)
@@ -56,13 +53,7 @@ mod radish {
                 .create_with_no_initial_supply();
             let admin_access_rule: AccessRule = rule!(require(admin_resource_manager.address()));
 
-            //* Roles
-            let component_roles = roles! {
-                owner => owner_access_rule.clone();
-                admin => admin_access_rule.clone();
-            };
-
-            /* ------------ Internal Data Setup ----------- */
+            //. Internal Data Setup
             let mut asset_list: AvlTree<Decimal, ResourceAddress> = AvlTree::new();
             let asset_vaults: KeyValueStore<ResourceAddress, Vault> = KeyValueStore::new();
 
@@ -87,8 +78,8 @@ mod radish {
             asset_list.insert(asset_count(), xrd_vault.resource_address());
             asset_vaults.insert(xrd_vault.resource_address(), xrd_vault);
 
-            /* ----------------- Component ---------------- */
-            //* Metadata
+            //. Component
+            // Metadata
             let component_metadata = metadata! {
                 roles {
                     metadata_setter         => OWNER;
@@ -102,11 +93,13 @@ mod radish {
                 }
             };
 
-            // Instantising the component
-            let component_data: Radish = Self {
-                asset_list,
-                vaults: asset_vaults,
+            // Roles
+            let component_roles = roles! {
+                admin => admin_access_rule.clone();
             };
+
+            // Instantising
+            let component_data: Radish = Self { asset_list, vaults: asset_vaults };
 
             let component: Global<Radish> = component_data
                 .instantiate()
@@ -122,14 +115,14 @@ mod radish {
         pub fn add_asset(&mut self, asset: ResourceAddress) {
             // Pre-run Checks
             assert!(!asset.is_fungible(), "Provided asset must be fungible.");
+            assert!(self.validate_asset(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
 
-            for (_, list_asset, _) in self.asset_list.range(dec!(0)..self.asset_list_length()) {
-                assert!(asset == list_asset, "Cannot add asset {:?}, as it is already added.", asset)
-            }
-
-            // Update the asset list and create a vault
+            // Update the asset list
             self.asset_list.insert(self.asset_list_length(), asset);
-            self.vaults.insert(asset, Vault::new(asset));
+            // If the asset does not already have a vault, add one
+            if !self.validate_asset(asset) {
+                self.vaults.insert(asset, Vault::new(asset));
+            }
         }
 
         /// Removes a (fungible) asset from the asset list, but does not remove its vault
@@ -150,11 +143,7 @@ mod radish {
                 }
             }
 
-            assert!(
-                !found || index == Decimal::MIN,
-                "Cannot find asset [{:?}] in the asset list. It is likely not added.",
-                asset
-            );
+            assert!(!found || index == Decimal::MIN, "Cannot find asset [{:?}] in the asset list. It is likely not added.", asset);
             assert!(
                 !self.vaults.get_mut(&asset).unwrap().is_empty(),
                 "Internal vault for the asset [{:?}] is not empty; cannot delete the asset.",
@@ -163,11 +152,37 @@ mod radish {
 
             // Remove the asset from the list
             self.asset_list.remove(&index);
-
-            // TODO: find some way to release the funds from the vault; might cause some problems with customers im just sayin
+            // TODO: find some way to release the funds from the vault when its removed
         }
 
         /* -------------- Private Methods ------------- */
+        fn validate_asset(&self, addr: ResourceAddress) -> bool {
+            info!("[validate_asset] Validating asset with address {:?}", asset);
+
+            // Check that a vault exists for the given address
+            if self.vaults.get(&addr).is_none() {
+                info!("[validate_asset] No vault found for asset {:?}", addr);
+                return false;
+            }
+
+            // Check that the asset is tracked in the asset_list
+            let mut found: bool = false;
+            for (_, list_asset, _) in self.asset_list.range(dec!(0)..self.asset_list_length()) {
+                if list_asset == addr {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                info!("[validate_asset] Asset {:?} not tracked in the asset list", addr);
+                return false;
+            }
+
+            // Return true if all checks passed
+            info!("[validate_asset] Asset {:?} successfully validated", addr);
+            true
+        }
+
         fn asset_list_length(&self) -> Decimal {
             return Decimal::from(self.asset_list.get_length());
         }
