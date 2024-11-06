@@ -23,17 +23,21 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
-  Collapsible, CollapsibleContent, CollapsibleTrigger,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { AssetCollapsibleContent } from "./collapsible-content";
+import { Asset } from "@/types/asset";
 
-interface DataTableProps<TData, TValue> {
+interface DataTableProps<TData extends Asset, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   rowSelection: RowSelectionState;
   onRowSelectionChange: (updaterOrValue: Updater<RowSelectionState>) => void;
 }
 
-export function AssetTable<TData, TValue>({
+export function AssetTable<TData extends Asset, TValue>({
   columns,
   data,
   rowSelection,
@@ -95,16 +99,26 @@ export function AssetTable<TData, TValue>({
         <TableBody>
           {sortedRows.length ? (
             sortedRows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
+              <Collapsible key={row.id} asChild>
+                <>
+                  <TableRow data-state={row.getIsSelected() && "selected"}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  <CollapsibleContent asChild>
+                    <TableRow>
+                      <TableCell colSpan={columns.length}>
+                        <div className="p-4 bg-gray-100 rounded-lg">
+                          <AssetCollapsibleContent asset={row.original} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </CollapsibleContent>
+                </>
+              </Collapsible>
             ))
           ) : (
             <TableRow>

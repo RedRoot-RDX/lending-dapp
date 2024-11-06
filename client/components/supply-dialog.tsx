@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowRight } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface SupplyDialogProps {
     isOpen: boolean;
@@ -34,42 +35,40 @@ const SupplyDialog: React.FC<SupplyDialogProps> = ({ isOpen, onClose, onConfirm 
                 </DialogHeader>
 
                 <div className="mt-6">
-                    <div className="grid grid-cols-3 gap-4 mb-2 text-sm text-gray-500">
-                        <div>Asset</div>
-                        <div>Amount</div>
-                        <div className="text-right">Effect on health</div>
-                    </div>
-
-                    {/* Asset rows */}
-                    {[
-                        { color: 'bg-green-400', symbol: 'XRD', health: 0.4 },
-                        { color: 'bg-red-400', symbol: 'MEME', health: 0.4 },
-                        { color: 'bg-orange-400', symbol: 'USDT', health: 0.4 }
-                    ].map((asset) => (
-                        <div key={asset.symbol} className="grid grid-cols-3 gap-4 items-center py-3 border-t">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-6 h-6 rounded-full ${asset.color}`} />
-                                <span className="font-semibold">{asset.symbol}</span>
-                            </div>
-
-                            <div className="flex flex-col gap-1">
-                                <div className="relative">
-                                    <Input
-                                        placeholder="0.0"
-                                        className="pl-2"
-                                    />
-                                </div>
-                                <div className="flex justify-between text-sm text-gray-500">
-                                    <span>$23.5152</span>
-                                    <Button variant="ghost" size="sm" className="h-auto p-0">Max</Button>
-                                </div>
-                            </div>
-
-                            <div className="text-right text-red-500 font-medium">
-                                {asset.health}
-                            </div>
-                        </div>
-                    ))}
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Asset</TableHead>
+                                <TableHead>Amount</TableHead>
+                                <TableHead className="text-right">Effect on health</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {/* Asset rows */}
+                            {[
+                                { color: 'bg-green-400', symbol: 'XRD', amount: 123.00123123123, health: 0.401 },
+                                { color: 'bg-red-400', symbol: 'MEME', amount: 99.00123123123, health: 0.231 },
+                                { color: 'bg-orange-400', symbol: 'USDT', amount: 5.00123123123, health: 0.123 }
+                            ].map((asset) => (
+                                <TableRow key={asset.symbol}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-6 h-6 rounded-full ${asset.color}`} />
+                                            <span className="font-semibold">{asset.symbol}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-semibold">${asset.amount}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right text-red-500 font-medium">
+                                        {asset.health}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
 
                 <DialogFooter className="mt-6">

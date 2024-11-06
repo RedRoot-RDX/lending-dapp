@@ -1,8 +1,14 @@
 "use client";
 
+import React from "react";
 import { AssetName } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { AssetCollapsibleContent } from "./collapsible-content";
+import { ChartContainer } from "@/components/ui/chart";
 
 export type Asset = {
   address: string;
@@ -46,5 +52,23 @@ export const columns: ColumnDef<Asset>[] = [
   {
     accessorKey: "apy",
     header: "APY",
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => {
+      const [isOpen, setIsOpen] = React.useState(false);
+      
+      return (
+        <CollapsibleTrigger asChild onClick={() => setIsOpen(!isOpen)}>
+          <Button variant="ghost" size="sm">
+            {isOpen ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        </CollapsibleTrigger>
+      );
+    },
   },
 ];
