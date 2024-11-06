@@ -6,8 +6,9 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { Asset } from "@/types/asset";
 
-export const columns: ColumnDef<Asset>[] = [
+export const columns: ColumnDef<Asset, unknown>[] = [
   {
     id: "select",
     header: "Select assets",
@@ -29,13 +30,15 @@ export const columns: ColumnDef<Asset>[] = [
       const colorMap: Record<AssetName, string> = {
         XRD: "bg-blue-500",
         USDT: "bg-green-500",
+        USDC: "bg-green-500",
+        DAI: "bg-green-500",
         HUG: "bg-purple-500",
         // Add more assets and their colors as needed
       };
 
       return (
         <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full ${colorMap[row.getValue("label")] || "bg-gray-400"}`} />
+          <div className={`w-6 h-6 rounded-full ${colorMap[row.getValue("label") as AssetName] || "bg-gray-400"}`} />
           <span>{row.getValue("label")}</span>
         </div>
       );

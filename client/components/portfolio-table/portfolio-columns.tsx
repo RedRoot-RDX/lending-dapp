@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Asset } from "../asset-table/columns";
+import { Asset } from "@/types/asset";
 import { Button } from "../ui/button";
 
 export const portfolioColumns: ColumnDef<Asset>[] = [

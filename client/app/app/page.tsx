@@ -5,7 +5,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AssetTable } from "@/components/asset-table/asset-table";
-import { Asset, columns } from "@/components/asset-table/columns";
+import { columns } from "@/components/asset-table/columns";
 import SupplyDialog from "@/components/supply-dialog";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
@@ -13,6 +13,7 @@ import { assetAddrRecord } from "@/lib/utils";
 import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 import { useToast } from "@/components/ui/use-toast";
+import type { Asset } from "@/types/asset";
 
 export default function App() {
   const { accounts } = useRadixContext();
@@ -20,7 +21,7 @@ export default function App() {
   const [borrowRowSelection, setBorrowRowSelection] = React.useState<RowSelectionState>({});
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const { toast } = useToast();
-  const [supplyData, setSupplyData] = useState([
+  const [supplyData, setSupplyData] = useState<Asset[]>([
     {
       address: assetAddrRecord["XRD"],
       label: "XRD",
@@ -153,7 +154,7 @@ export default function App() {
             <CardContent>
               <PortfolioTable
                 columns={portfolioColumns}
-                data={supplyData.map(asset => ({ ...asset, type: 'supply' }))}
+                data={supplyData.map(asset => ({ ...asset, type: 'supply' as const }))}
               />
             </CardContent>
           </Card>
@@ -202,7 +203,7 @@ export default function App() {
             <CardContent>
               <PortfolioTable
                 columns={portfolioColumns}
-                data={supplyData.map(asset => ({ ...asset, type: 'borrow' }))}
+                data={supplyData.map(asset => ({ ...asset, type: 'borrow' as const }))}
               />
             </CardContent>
           </Card>
@@ -218,6 +219,7 @@ export default function App() {
                 data={supplyData}
                 rowSelection={borrowRowSelection}
                 onRowSelectionChange={setBorrowRowSelection}
+                onAmountChange={handleAmountChange}
               />
             </CardContent>
           </Card>
