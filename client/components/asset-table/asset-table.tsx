@@ -10,7 +10,7 @@ import {
   getFilteredRowModel,
   RowSelectionState,
   Updater,
-  TableState,
+  getPaginationRowModel,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/collapsible";
 import { AssetCollapsibleContent } from "./collapsible-content";
 import { Asset } from "@/types/asset";
+import { Button } from "../ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface DataTableProps<TData extends Asset, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -82,6 +84,7 @@ export function AssetTable<TData extends Asset, TValue>({
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: handleRowSelectionChange,
+    getPaginationRowModel: getPaginationRowModel(),
     enableExpanding: true,
     onExpandedChange: (updaterOrValue) => {
       const newValue = typeof updaterOrValue === 'function'
@@ -115,6 +118,10 @@ export function AssetTable<TData extends Asset, TValue>({
       columnFilters,
       rowSelection,
       expanded: expandedRows,
+      pagination: {
+        pageSize: 10,
+        pageIndex: 0,
+      },
     },
   });
 
@@ -203,6 +210,28 @@ export function AssetTable<TData extends Asset, TValue>({
           )}
         </TableBody>
       </Table>
+      <div className="flex items-center justify-end space-x-2 p-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => table.previousPage()}
+          disabled={!table.getCanPreviousPage()}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex items-center gap-1 text-sm font-medium">
+          Page {table.getState().pagination.pageIndex + 1} of{" "}
+          {table.getPageCount()}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => table.nextPage()}
+          disabled={!table.getCanNextPage()}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
