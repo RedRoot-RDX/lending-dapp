@@ -6,22 +6,11 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { AssetCollapsibleContent } from "./collapsible-content";
-import { ChartContainer } from "@/components/ui/chart";
-
-export type Asset = {
-  address: string;
-  label: AssetName;
-  wallet_balance: number;
-  select_native: number;
-  apy: string;
-};
 
 export const columns: ColumnDef<Asset>[] = [
   {
     id: "select",
-    header: "Select assets", // Changed from checkbox to text header
+    header: "Select assets",
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
@@ -35,6 +24,22 @@ export const columns: ColumnDef<Asset>[] = [
   {
     accessorKey: "label",
     header: "Assets",
+    cell: ({ row }) => {
+      // Define color mapping for different assets
+      const colorMap: Record<AssetName, string> = {
+        XRD: "bg-blue-500",
+        USDT: "bg-green-500",
+        HUG: "bg-purple-500",
+        // Add more assets and their colors as needed
+      };
+
+      return (
+        <div className="flex items-center gap-2">
+          <div className={`w-6 h-6 rounded-full ${colorMap[row.getValue("label")] || "bg-gray-400"}`} />
+          <span>{row.getValue("label")}</span>
+        </div>
+      );
+    },
   },
   {
     accessorKey: "wallet_balance",
@@ -43,10 +48,11 @@ export const columns: ColumnDef<Asset>[] = [
   {
     accessorKey: "select_native",
     header: "Selected Amount",
-    cell: ({ row }) => {
-      const amount = row.getValue("select_native");
-      return amount ? Number(amount).toFixed(2) : "0.00";
-    }
+    cell: ({ row }) => (
+      <div>
+        {row.original.select_native > 0 ? row.original.select_native : "-"}
+      </div>
+    ),
   },
   {
     accessorKey: "apy",

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { RowSelectionState } from "@tanstack/react-table";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AssetTable } from "@/components/asset-table/asset-table";
 import { Asset, columns } from "@/components/asset-table/columns";
 import SupplyDialog from "@/components/supply-dialog";
@@ -12,39 +12,37 @@ import { gatewayApi, rdt } from "@/lib/radix";
 import { assetAddrRecord } from "@/lib/utils";
 import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
-
-const data: Asset[] = [
-  {
-    address: assetAddrRecord["XRD"],
-    label: "XRD",
-    wallet_balance: 100.5,
-    select_native: 0.00,
-    apy: "10.3%",
-  },
-  {
-    address: assetAddrRecord["USDT"],
-    label: "USDT",
-    wallet_balance: 87,
-    select_native: 0.00,
-    apy: "5.5%",
-  },
-  {
-    address: assetAddrRecord["HUG"],
-    label: "HUG",
-    wallet_balance: 12,
-    select_native: 0.00,
-    apy: "23.1%",
-  },
-];
-
-const supplyData = data;
-const borrowData = data;
+import { useToast } from "@/components/ui/use-toast";
 
 export default function App() {
   const { accounts } = useRadixContext();
   const [supplyRowSelection, setSupplyRowSelection] = React.useState<RowSelectionState>({});
   const [borrowRowSelection, setBorrowRowSelection] = React.useState<RowSelectionState>({});
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+  const { toast } = useToast();
+  const [supplyData, setSupplyData] = useState([
+    {
+      address: assetAddrRecord["XRD"],
+      label: "XRD",
+      wallet_balance: 100.5,
+      select_native: 0.00,
+      apy: "10.3%",
+    },
+    {
+      address: assetAddrRecord["USDT"],
+      label: "USDT",
+      wallet_balance: 87,
+      select_native: 0.00,
+      apy: "5.5%",
+    },
+    {
+      address: assetAddrRecord["HUG"],
+      label: "HUG",
+      wallet_balance: 12,
+      select_native: 0.00,
+      apy: "23.1%",
+    },
+  ]);
 
   const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
   const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
@@ -67,6 +65,46 @@ export default function App() {
     // Handle supply confirmation logic here
     console.log("Supply confirmed for assets:", getSelectedAssets());
     setIsPreviewDialogOpen(false);
+  };
+
+  const validateSelectedAssets = () => {
+    const selectedAssets = Object.keys(supplyRowSelection).filter(
+      (key) => supplyRowSelection[key]
+    );
+    
+    console.log("Selected assets:", selectedAssets);
+    console.log("Supply data:", supplyData);
+    
+    // Check if any selected assets have amount <= 0
+    const hasInvalidAmount = selectedAssets.some((key) => {
+      const asset = supplyData[parseInt(key)];
+      console.log(`Checking asset ${key}:`, asset);
+      return !asset || asset.select_native <= 0;
+    });
+
+    return !hasInvalidAmount;
+  };
+
+  const handlePreviewSupply = () => {
+    if (!validateSelectedAssets()) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Selection",
+        description: "Please ensure all selected assets have an amount greater than 0",
+      });
+      return;
+    }
+    setIsPreviewDialogOpen(true);
+  };
+
+  const handleAmountChange = (address: string, amount: number) => {
+    setSupplyData(current =>
+      current.map(row =>
+        row.address === address
+          ? { ...row, select_native: amount }
+          : row
+      )
+    );
   };
 
   return (
@@ -126,7 +164,7 @@ export default function App() {
               <div className="grid grid-cols-2 gap-4">
                 <CardTitle>Available Collateral</CardTitle>
                 {hasSelectedSupplyAssets && (
-                  <Button onClick={previewSupply}>Preview Supply</Button>
+                  <Button onClick={handlePreviewSupply}>Preview Supply</Button>
                 )}
               </div>
             </CardHeader>
@@ -136,6 +174,7 @@ export default function App() {
                 data={supplyData}
                 rowSelection={supplyRowSelection}
                 onRowSelectionChange={setSupplyRowSelection}
+                onAmountChange={handleAmountChange}
               />
             </CardContent>
           </Card>
@@ -163,7 +202,7 @@ export default function App() {
             <CardContent>
               <PortfolioTable
                 columns={portfolioColumns}
-                data={borrowData.map(asset => ({ ...asset, type: 'borrow' }))}
+                data={supplyData.map(asset => ({ ...asset, type: 'borrow' }))}
               />
             </CardContent>
           </Card>
@@ -176,7 +215,7 @@ export default function App() {
             <CardContent>
               <AssetTable
                 columns={columns}
-                data={borrowData}
+                data={supplyData}
                 rowSelection={borrowRowSelection}
                 onRowSelectionChange={setBorrowRowSelection}
               />

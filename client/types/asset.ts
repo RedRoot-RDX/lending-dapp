@@ -1,6 +1,8 @@
 export interface Asset {
-  id: string;
+  id?: string;
   label: string;
-  amount: number;
-  // Add other asset properties that your table uses
+  address: string;
+  wallet_balance: number;
+  select_native: number;
+  apy: string;
 } 

@@ -33,6 +33,7 @@ interface DataTableProps<TData extends Asset, TValue> {
   data: TData[];
   rowSelection: RowSelectionState;
   onRowSelectionChange: (updaterOrValue: Updater<RowSelectionState>) => void;
+  onAmountChange: (address: string, amount: number) => void;
 }
 
 export function AssetTable<TData extends Asset, TValue>({
@@ -40,6 +41,7 @@ export function AssetTable<TData extends Asset, TValue>({
   data,
   rowSelection,
   onRowSelectionChange,
+  onAmountChange,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState(data);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -53,6 +55,7 @@ export function AssetTable<TData extends Asset, TValue>({
           : row
       )
     );
+    onAmountChange(address, amount);
   };
 
   const handleConfirm = () => {

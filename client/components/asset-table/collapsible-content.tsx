@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,9 @@ const dummyData = [
 
 interface Asset {
   label: string;
-  amount: number;
+  address: string;
+  wallet_balance: number;
+  select_native: number;
 }
 
 interface CollapsibleContentProps {
@@ -30,37 +32,32 @@ interface CollapsibleContentProps {
 }
 
 export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: CollapsibleContentProps) {
-  const [tempAmount, setTempAmount] = React.useState<string>("");
-  const [error, setError] = React.useState<string>("");
+  const [tempAmount, setTempAmount] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const handleAmountChange = (value: string) => {
     setTempAmount(value);
-    if (error) setError("");
+    const amount = parseFloat(value);
+    if (isNaN(amount)) {
+      setError("Please enter a valid number");
+    } else if (amount > asset.wallet_balance) {
+      setError("Amount exceeds wallet balance");
+    } else {
+      setError(null);
+    }
   };
 
   const handleMaxClick = () => {
-    const maxAmount = asset.wallet_balance.toString();
-    setTempAmount(maxAmount);
-    setError("");
+    setTempAmount(asset.wallet_balance.toString());
+    setError(null);
   };
 
   const handleConfirm = () => {
-    const numericValue = parseFloat(tempAmount) || 0;
-    
-    if (numericValue <= 0) {
-      setError("Amount must be greater than 0");
-      return;
+    const amount = parseFloat(tempAmount);
+    if (!isNaN(amount) && amount > 0) {
+      onAmountChange(amount);
+      onConfirm();
     }
-
-    if (numericValue > asset.wallet_balance) {
-      setError("Amount cannot exceed wallet balance");
-      return;
-    }
-
-    onAmountChange(numericValue);
-    onConfirm();
-    setTempAmount("");
-    setError("");
   };
 
   return (
