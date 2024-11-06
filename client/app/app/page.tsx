@@ -10,6 +10,8 @@ import SupplyDialog from "@/components/supply-dialog";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
 import { assetAddrRecord } from "@/lib/utils";
+import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
+import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 
 const data: Asset[] = [
   {
@@ -114,33 +116,10 @@ export default function App() {
               </div>
             </CardHeader>
             <CardContent>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Assets</th>
-                    <th className="text-left py-2">Supplied</th>
-                    <th className="text-left py-2">Supply</th>
-                    <th className="text-left py-2">APY</th>
-                    <th className="text-right py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {supplyData.map((asset) => (
-                    <tr key={asset.label} className="border-b">
-                      <td className="py-4 flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full" />
-                        {asset.label}
-                      </td>
-                      <td>{asset.select_native}</td>
-                      <td>${asset.select_usd}</td>
-                      <td>{asset.apy}</td>
-                      <td className="text-right">
-                        <Button variant="secondary">Withdraw</Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <PortfolioTable
+                columns={portfolioColumns}
+                data={supplyData.map(asset => ({ ...asset, type: 'supply' }))}
+              />
             </CardContent>
           </Card>
 
@@ -174,44 +153,21 @@ export default function App() {
                 <CardTitle>Your Borrows</CardTitle>
                 <div className="flex justify-end">
                   <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
-                      <CardDescription className="text-left">Total Debt:</CardDescription>
-                      <CardDescription className="text-right">$0.0</CardDescription>
-                      <CardDescription className="text-left">Total APY:</CardDescription>
-                      <CardDescription className="text-right">10.3%</CardDescription>
-                      <CardDescription className="text-left">Borrow Power Used:</CardDescription>
-                      <CardDescription className="text-right">51.4%</CardDescription>
-                    </div>
+                    <CardDescription className="text-left">Total Debt:</CardDescription>
+                    <CardDescription className="text-right">$0.0</CardDescription>
+                    <CardDescription className="text-left">Total APY:</CardDescription>
+                    <CardDescription className="text-right">10.3%</CardDescription>
+                    <CardDescription className="text-left">Borrow Power Used:</CardDescription>
+                    <CardDescription className="text-right">51.4%</CardDescription>
+                  </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Assets</th>
-                    <th className="text-left py-2">Borrowed</th>
-                    <th className="text-left py-2">Debt</th>
-                    <th className="text-left py-2">APY</th>
-                    <th className="text-right py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {borrowData.map((asset) => (
-                    <tr key={asset.label} className="border-b">
-                      <td className="py-4 flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full" />
-                        {asset.label}
-                      </td>
-                      <td>{asset.select_native}</td>
-                      <td>${asset.select_usd}</td>
-                      <td>{asset.apy}</td>
-                      <td className="text-right">
-                        <Button variant="secondary">Repay</Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <PortfolioTable
+                columns={portfolioColumns}
+                data={borrowData.map(asset => ({ ...asset, type: 'borrow' }))}
+              />
             </CardContent>
           </Card>
 
