@@ -22,6 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];

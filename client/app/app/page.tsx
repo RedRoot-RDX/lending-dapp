@@ -103,8 +103,12 @@ export default function App() {
                 <CardTitle>Your Collateral</CardTitle>
                 <div className="flex justify-end">
                   <div className="space-y-0 text-left min-h-[60px]">
-                    <CardDescription>Total Supply: $0.0</CardDescription>
-                    <CardDescription>Total APY: 10.3%</CardDescription>
+                    <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
+                      <CardDescription className="text-left">Total Supply:</CardDescription>
+                      <CardDescription className="text-right mr-4">$0.0</CardDescription>
+                      <CardDescription className="text-left">Total APY:</CardDescription>
+                      <CardDescription className="text-right mr-4">10.3%</CardDescription>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -169,11 +173,14 @@ export default function App() {
               <div className="grid grid-cols-2">
                 <CardTitle>Your Borrows</CardTitle>
                 <div className="flex justify-end">
-                  <div className="space-y-0 text-left min-h-[60px]">
-                    <CardDescription>Total Debt: $0.0</CardDescription>
-                    <CardDescription>Total APY: 0%</CardDescription>
-                    <CardDescription>Borrowing Power Used: 51.4%</CardDescription>
-                  </div>
+                  <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
+                      <CardDescription className="text-left">Total Debt:</CardDescription>
+                      <CardDescription className="text-right">$0.0</CardDescription>
+                      <CardDescription className="text-left">Total APY:</CardDescription>
+                      <CardDescription className="text-right">10.3%</CardDescription>
+                      <CardDescription className="text-left">Borrow Power Used:</CardDescription>
+                      <CardDescription className="text-right">51.4%</CardDescription>
+                    </div>
                 </div>
               </div>
             </CardHeader>
