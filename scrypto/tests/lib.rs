@@ -1,13 +1,17 @@
+/* ------------------ Imports ----------------- */
+use ::redroot::redroot_test::*;
 use scrypto_test::prelude::*;
 
+/* ------------------- Misc. ------------------ */
 struct Account {
     public_key: Secp256k1PublicKey,
     private_key: Secp256k1PrivateKey,
     addr: ComponentAddress,
 }
 
+/* ------------------- Tests ------------------ */
 #[test]
-fn instantisation_test_succeeds() -> Result<(), RuntimeError> {
+fn instantisation_test() -> Result<(), RuntimeError> {
     //. Simulation Setup
     let mut ledger: LedgerSimulator<NoExtension, InMemorySubstateDatabase> = LedgerSimulatorBuilder::new().build();
 
@@ -38,9 +42,14 @@ fn instantisation_test_succeeds() -> Result<(), RuntimeError> {
         .build();
     let tx_instantiate_receipt = ledger.execute_manifest(manifest, vec![NonFungibleGlobalId::from_public_key(&main_account.public_key)]);
 
-    println!("{:?}\n", tx_instantiate_receipt);
+    // println!("{:?}\n", tx_instantiate_receipt);
 
     let component = tx_instantiate_receipt.expect_commit(true).new_component_addresses()[0];
+
+    #[rustfmt::skip]
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .call_method(component, "add_asset", manifest_args!());
 
     Ok(())
 }
