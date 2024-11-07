@@ -4,11 +4,17 @@ use scrypto_avltree::{AvlTree, NodeIterator, NodeIteratorMut};
 
 /* ------------- Custom Structures ------------ */
 /// State explosion-safe vector; builds on Ociswap's AvlTree library
+#[derive(ScryptoSbor)]
 pub struct LazyVec<T: ScryptoSbor + Clone + Debug + PartialEq> {
-    inner: AvlTree<Decimal, T>,
+    pub inner: AvlTree<Decimal, T>,
 }
 
 impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
+    /// Create an empty LazyVec instance
+    pub fn new() -> Self {
+        LazyVec { inner: AvlTree::new() }
+    }
+
     pub fn length(&self) -> Decimal {
         Decimal::from(self.inner.get_length())
     }
@@ -17,6 +23,10 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
     pub fn append(&mut self, el: T) -> Decimal {
         self.inner.insert(self.length(), el);
         self.length() - 1
+    }
+
+    pub fn remove(&mut self, i: &Decimal) -> Option<T> {
+        self.inner.remove(i)
     }
 
     /// Removes the first occurence of T, returns the index of the removed element
@@ -78,6 +88,17 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
         Some(index)
     }
 
+    /// Searches for the first occurence of T, and returns its index if found
+    pub fn find(&self, flag: &T) -> Option<Decimal> {
+        for (i, el, _) in self.iter() {
+            if &el == flag {
+                return Some(i);
+            }
+        }
+
+        None
+    }
+
     pub fn iter(&self) -> NodeIterator<Decimal, T> {
         self.inner.range(dec!(0)..self.length())
     }
@@ -85,11 +106,4 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
     pub fn iter_mut(&mut self) -> NodeIteratorMut<Decimal, T> {
         self.inner.range_mut(dec!(0)..self.length())
     }
-}
-
-#[derive(ScryptoSbor)]
-pub enum FungibleValid {
-    Full = 2,
-    Untracked = 1,
-    False = 0,
 }

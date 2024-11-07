@@ -5,8 +5,8 @@ CALL_METHOD
 
 CALL_FUNCTION
     Address("${package}")
-    "Radish"
-    "instantise_radish"
+    "RedRoot"
+    "instantiate"
     Address("resource_tdx_2_1t57e50rm28cyqwn26jn336qyhu8nkt8cknacq8rnsn5kul2l3zvjut")
     Address("resource_tdx_2_1tkuj2rqsa63f8ygkzezgt27trj50srht5e666jaz28j5ss8fasg5kl");
 

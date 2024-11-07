@@ -1,68 +1,54 @@
-// use scrypto_test::prelude::*;
+use scrypto_test::prelude::*;
 
-// use radish_backend::radish_test::*;
+struct Account {
+    public_key: Secp256k1PublicKey,
+    private_key: Secp256k1PrivateKey,
+    addr: ComponentAddress,
+}
 
-// #[test]
-// fn test_radish() {
-//     // Setup the environment
-//     let mut ledger = LedgerSimulatorBuilder::new().build();
+#[test]
+fn instantisation_test_succeeds() -> Result<(), RuntimeError> {
+    //. Simulation Setup
+    let mut ledger: LedgerSimulator<NoExtension, InMemorySubstateDatabase> = LedgerSimulatorBuilder::new().build();
 
-//     // Create an account
-//     let (public_key, _private_key, account) = ledger.new_allocated_account();
+    //. Account Setup
+    // Main Account
+    let (public_key, private_key, account) = ledger.new_allocated_account();
+    let main_account = Account {
+        public_key,
+        private_key,
+        addr: account,
+    };
+    // User 1
+    let (public_key, private_key, account) = ledger.new_allocated_account();
+    let user_account = Account {
+        public_key,
+        private_key,
+        addr: account,
+    };
 
-//     // Publish package
-//     let package_address = ledger.compile_and_publish(this_package!());
+    //. Package Publishing
+    let package_address = ledger.compile_and_publish(this_package!());
 
-//     // Test the `instantiate_hello` function.
-//     let manifest = ManifestBuilder::new()
-//         .lock_fee_from_faucet()
-//         .call_function(
-//             package_address,
-//             "Hello",
-//             "instantiate_hello",
-//             manifest_args!(),
-//         )
-//         .build();
-//     let receipt = ledger.execute_manifest(
-//         manifest,
-//         vec![NonFungibleGlobalId::from_public_key(&public_key)],
-//     );
-//     println!("{:?}\n", receipt);
-//     let component = receipt.expect_commit(true).new_component_addresses()[0];
+    #[rustfmt::skip]
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .call_function(
+            package_address,
+            "RedRoot", "instantiate",
+            manifest_args!()
+        )
+        .call_method(
+            main_account.addr,
+            "deposit_batch",
+            manifest_args!(ManifestExpression::EntireWorktop)
+        )
+        .build();
+    let tx_instantiate_receipt = ledger.execute_manifest(manifest, vec![NonFungibleGlobalId::from_public_key(&main_account.public_key)]);
 
-//     // Test the `free_token` method.
-//     let manifest = ManifestBuilder::new()
-//         .lock_fee_from_faucet()
-//         .call_method(component, "free_token", manifest_args!())
-//         .call_method(
-//             account,
-//             "deposit_batch",
-//             manifest_args!(ManifestExpression::EntireWorktop),
-//         )
-//         .build();
-//     let receipt = ledger.execute_manifest(
-//         manifest,
-//         vec![NonFungibleGlobalId::from_public_key(&public_key)],
-//     );
-//     println!("{:?}\n", receipt);
-//     receipt.expect_commit_success();
-// }
+    println!("{:?}\n", tx_instantiate_receipt);
 
-// #[test]
-// fn test_hello_with_test_environment() -> Result<(), RuntimeError> {
-//     // Arrange
-//     let mut env = TestEnvironment::new();
-//     let package_address = 
-//         PackageFactory::compile_and_publish(this_package!(), &mut env, CompileProfile::Fast)?;
+    let component = tx_instantiate_receipt.expect_commit(true).new_component_addresses()[0];
 
-//     let mut hello = Hello::instantiate_hello(package_address, &mut env)?;
-
-//     // Act
-//     let bucket = hello.free_token(&mut env)?;
-
-//     // Assert
-//     let amount = bucket.amount(&mut env)?;
-//     assert_eq!(amount, dec!("1"));
-
-//     Ok(())
-// }
+    Ok(())
+}

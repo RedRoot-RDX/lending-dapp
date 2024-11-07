@@ -2,11 +2,11 @@
 mod shared;
 
 use scrypto::prelude::*;
-use scrypto_avltree::AvlTree;
+use shared::LazyVec;
 
 /* ----------------- Blueprint ---------------- */
 #[blueprint]
-mod radish {
+mod redroot {
     enable_method_auth! {
         roles {
             admin => updatable_by: [OWNER];
@@ -17,29 +17,25 @@ mod radish {
         }
     }
 
-    struct Radish {
+    struct RedRoot {
         // Asset Storage
-        asset_list: AvlTree<Decimal, ResourceAddress>,
+        asset_list: LazyVec<ResourceAddress>,
         vaults: KeyValueStore<ResourceAddress, Vault>,
     }
 
-    impl Radish {
+    impl RedRoot {
         /* --------------- Public Methods -------------- */
-        pub fn instantiate() -> (Global<Radish>, Bucket) {
-            // Keep track of the number of assets supported by Radish
-            let mut _asset_count: Decimal = dec!(-1);
-            let mut asset_count = || {
-                _asset_count += dec!(1);
-                _asset_count
-            };
+        pub fn instantiate() -> (Global<RedRoot>, Bucket) {
+            // Reserve address
+            let (address_reservation, component_address) = Runtime::allocate_component_address(RedRoot::blueprint_id());
 
             //. Authorization
             // Component Owner
             let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata(metadata! {init {
-                    "name"        => "Radish Owner Badge", locked;
-                    "description" => "Badge representing the owner of the Radish lending platform", locked;
+                    "name"        => "RedRoot Owner Badge", locked;
+                    "description" => "Badge representing the owner of the RedRoot lending platform", locked;
                 }})
                 .mint_initial_supply(1)
                 .into();
@@ -56,28 +52,28 @@ mod radish {
             let admin_access_rule: AccessRule = rule!(require(admin_resource_manager.address()));
 
             //. Internal Data Setup
-            let mut asset_list: AvlTree<Decimal, ResourceAddress> = AvlTree::new();
+            let mut asset_list: LazyVec<ResourceAddress> = LazyVec::new();
             let asset_vaults: KeyValueStore<ResourceAddress, Vault> = KeyValueStore::new();
 
-            // Radish
-            let radish_bucket: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
+            // RedRoot
+            let redroot_bucket: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_MAXIMUM)
                 .metadata(metadata! {init {
-                    "name"        => "Radish", locked;
-                    "symbol"      => "RSH",    locked;
-                    "description" => "",       locked;
+                    "name"        => "RedRoot", locked;
+                    "symbol"      => "RRT",     locked;
+                    "description" => "",        locked;
                 }})
                 .mint_initial_supply(10000)
                 .into();
-            let radish_vault: Vault = Vault::with_bucket(radish_bucket);
+            let redroot_vault: Vault = Vault::with_bucket(redroot_bucket);
 
-            asset_list.insert(asset_count(), radish_vault.resource_address());
-            asset_vaults.insert(radish_vault.resource_address(), radish_vault);
+            asset_list.append(redroot_vault.resource_address());
+            asset_vaults.insert(redroot_vault.resource_address(), redroot_vault);
 
             // XRD
             let xrd_vault: Vault = Vault::new(XRD);
 
-            asset_list.insert(asset_count(), xrd_vault.resource_address());
+            asset_list.append(xrd_vault.resource_address());
             asset_vaults.insert(xrd_vault.resource_address(), xrd_vault);
 
             //. Component
@@ -90,7 +86,7 @@ mod radish {
                     metadata_locker_updater => rule!(deny_all);
                 },
                 init {
-                    "name"        => "Radish Lending Platform", locked;
+                    "name"        => "RedRoot Lending Platform", locked;
                     "description" => "Multi-collateralized lending platform", locked;
                 }
             };
@@ -101,13 +97,14 @@ mod radish {
             };
 
             // Instantising
-            let component_data: Radish = Self { asset_list, vaults: asset_vaults };
+            let component_data: RedRoot = Self { asset_list, vaults: asset_vaults };
 
-            let component: Global<Radish> = component_data
+            let component: Global<RedRoot> = component_data
                 .instantiate()
                 .prepare_to_globalize(OwnerRole::Fixed(owner_access_rule.clone()))
                 .roles(component_roles)
                 .metadata(component_metadata)
+                .with_address(address_reservation)
                 .globalize();
 
             (component, owner_badge)
@@ -115,14 +112,14 @@ mod radish {
 
         /// Adds a (fungible) asset into the asset list and create a corresponding vault
         pub fn add_asset(&mut self, asset: ResourceAddress) {
-            // Pre-run Checks
+            // Validation
             assert!(!asset.is_fungible(), "Provided asset must be fungible.");
             assert!(self.validate_fungible(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
 
             // Update the asset list
-            self.asset_list.insert(self.asset_list_length(), asset);
-            // If the asset does not already have a vault, add one
-            if !self.validate_fungible(asset) {
+            self.asset_list.append(asset);
+            // If the asset does not already have a vault, create one
+            if self.vaults.get(&asset).is_none() {
                 self.vaults.insert(asset, Vault::new(asset));
             }
         }
@@ -130,67 +127,51 @@ mod radish {
         /// Removes a (fungible) asset from the asset list, but does not remove its vault
         // ! Asset can only be removed if vault empty; vault itself not deleted
         pub fn remove_asset(&mut self, asset: ResourceAddress) {
-            // Pre-run Checks
-            assert!(!asset.is_fungible(), "Provided asset must be fungible.");
+            // Validation
+            assert!(!self.validate_fungible(asset), "Asset is invalid");
 
-            let mut found: bool = false;
-            let mut index: Decimal = Decimal::MIN;
-            for (i, list_asset, _) in self.asset_list.range(dec!(0)..self.asset_list_length()) {
-                if asset == list_asset {
-                    found = true;
-                    index = i;
-                    break;
-                }
+            let found = self.asset_list.find(&asset);
+            if let Some(index) = found {
+                assert!(
+                    !self.vaults.get_mut(&asset).unwrap().is_empty(),
+                    "Internal vault for the asset [{:?}] is not empty; cannot delete the asset.",
+                    asset
+                );
+
+                // Remove the asset from the list
+                self.asset_list.remove(&index);
+                // TODO: find some way to release the funds from the vault when its removed
+            } else {
+                panic!("Cannot find asset [{:?}] in the asset list. It is likely not added.", asset);
             }
-
-            assert!(!found || index == Decimal::MIN, "Cannot find asset [{:?}] in the asset list. It is likely not added.", asset);
-            assert!(
-                !self.vaults.get_mut(&asset).unwrap().is_empty(),
-                "Internal vault for the asset [{:?}] is not empty; cannot delete the asset.",
-                asset
-            );
-
-            // Remove the asset from the list
-            self.asset_list.remove(&index);
-            // TODO: find some way to release the funds from the vault when its removed
         }
 
         /* -------------- Private Methods ------------- */
         /// Checks
         fn validate_fungible(&self, addr: ResourceAddress) -> bool {
-            info!("[validate_asset] Validating asset with address {:?}", addr);
+            info!("[validate_fungible] Validating asset with address {:?}", addr);
 
             if !addr.is_fungible() {
-                info!("[validate_asset] Asset {:?} is not fungible", addr);
+                info!("[validate_fungible] Asset {:?} is not fungible", addr);
                 return false;
             }
 
             // Check that a vault exists for the given address
             if self.vaults.get(&addr).is_none() {
-                info!("[validate_asset] No vault found for asset {:?}", addr);
+                info!("[validate_fungible] No vault found for asset {:?}", addr);
                 return false;
             }
 
             // Check that the asset is tracked in the asset_list
-            let mut found: bool = false;
-            for (_, list_asset, _) in self.asset_list.range(dec!(0)..self.asset_list_length()) {
-                if list_asset == addr {
-                    found = true;
-                    break;
-                }
-            }
+            let found = self.asset_list.find(&addr).is_some();
             if !found {
-                info!("[validate_asset] Asset {:?} not tracked in the asset list", addr);
+                info!("[validate_fungible] Asset {:?} not tracked in the asset list", addr);
                 return false;
             }
 
             // Return true if all checks passed
-            info!("[validate_asset] Asset {:?} successfully validated", addr);
+            info!("[validate_fungible] Asset {:?} successfully validated", addr);
             true
-        }
-
-        fn asset_list_length(&self) -> Decimal {
-            return Decimal::from(self.asset_list.get_length());
         }
     }
 }
