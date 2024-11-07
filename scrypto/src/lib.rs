@@ -53,7 +53,7 @@ mod redroot {
 
             //. Internal Data Setup
             let mut asset_list: LazyVec<ResourceAddress> = LazyVec::new();
-            let asset_vaults: KeyValueStore<ResourceAddress, Vault> = KeyValueStore::new();
+            let vaults: KeyValueStore<ResourceAddress, Vault> = KeyValueStore::new();
 
             // RedRoot
             let redroot_bucket: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
@@ -68,13 +68,13 @@ mod redroot {
             let redroot_vault: Vault = Vault::with_bucket(redroot_bucket);
 
             asset_list.append(redroot_vault.resource_address());
-            asset_vaults.insert(redroot_vault.resource_address(), redroot_vault);
+            vaults.insert(redroot_vault.resource_address(), redroot_vault);
 
             // XRD
             let xrd_vault: Vault = Vault::new(XRD);
 
             asset_list.append(xrd_vault.resource_address());
-            asset_vaults.insert(xrd_vault.resource_address(), xrd_vault);
+            vaults.insert(xrd_vault.resource_address(), xrd_vault);
 
             //. Component
             // Metadata
@@ -97,7 +97,7 @@ mod redroot {
             };
 
             // Instantising
-            let component_data: RedRoot = Self { asset_list, vaults: asset_vaults };
+            let component_data: RedRoot = Self { asset_list, vaults };
 
             let component: Global<RedRoot> = component_data
                 .instantiate()

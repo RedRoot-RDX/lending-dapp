@@ -14,18 +14,10 @@ fn instantisation_test_succeeds() -> Result<(), RuntimeError> {
     //. Account Setup
     // Main Account
     let (public_key, private_key, account) = ledger.new_allocated_account();
-    let main_account = Account {
-        public_key,
-        private_key,
-        addr: account,
-    };
+    let main_account = Account { public_key, private_key, addr: account };
     // User 1
     let (public_key, private_key, account) = ledger.new_allocated_account();
-    let user_account = Account {
-        public_key,
-        private_key,
-        addr: account,
-    };
+    let user_account = Account { public_key, private_key, addr: account };
 
     //. Package Publishing
     let package_address = ledger.compile_and_publish(this_package!());
