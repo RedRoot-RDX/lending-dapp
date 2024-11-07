@@ -17,25 +17,25 @@ mod redroot {
         }
     }
 
-    struct RedRoot {
+    struct Redroot {
         // Asset Storage
         asset_list: LazyVec<ResourceAddress>,
         vaults: KeyValueStore<ResourceAddress, Vault>,
     }
 
-    impl RedRoot {
+    impl Redroot {
         /* --------------- Public Methods -------------- */
-        pub fn instantiate() -> (Global<RedRoot>, Bucket) {
+        pub fn instantiate() -> (Global<Redroot>, Bucket) {
             // Reserve address
-            let (address_reservation, component_address) = Runtime::allocate_component_address(RedRoot::blueprint_id());
+            let (address_reservation, component_address) = Runtime::allocate_component_address(Redroot::blueprint_id());
 
             //. Authorization
             // Component Owner
             let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata(metadata! {init {
-                    "name"        => "RedRoot Owner Badge", locked;
-                    "description" => "Badge representing the owner of the RedRoot lending platform", locked;
+                    "name"        => "Redroot Owner Badge", locked;
+                    "description" => "Badge representing the owner of the Redroot lending platform", locked;
                 }})
                 .mint_initial_supply(1)
                 .into();
@@ -55,11 +55,11 @@ mod redroot {
             let mut asset_list: LazyVec<ResourceAddress> = LazyVec::new();
             let vaults: KeyValueStore<ResourceAddress, Vault> = KeyValueStore::new();
 
-            // RedRoot
+            // Redroot
             let redroot_bucket: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_MAXIMUM)
                 .metadata(metadata! {init {
-                    "name"        => "RedRoot", locked;
+                    "name"        => "Redroot", locked;
                     "symbol"      => "RRT",     locked;
                     "description" => "",        locked;
                 }})
@@ -86,7 +86,7 @@ mod redroot {
                     metadata_locker_updater => rule!(deny_all);
                 },
                 init {
-                    "name"        => "RedRoot Lending Platform", locked;
+                    "name"        => "Redroot Lending Platform", locked;
                     "description" => "Multi-collateralized lending platform", locked;
                 }
             };
@@ -97,9 +97,9 @@ mod redroot {
             };
 
             // Instantising
-            let component_data: RedRoot = Self { asset_list, vaults };
+            let component_data: Redroot = Self { asset_list, vaults };
 
-            let component: Global<RedRoot> = component_data
+            let component: Global<Redroot> = component_data
                 .instantiate()
                 .prepare_to_globalize(OwnerRole::Fixed(owner_access_rule.clone()))
                 .roles(component_roles)
@@ -113,8 +113,8 @@ mod redroot {
         /// Adds a (fungible) asset into the asset list and create a corresponding vault
         pub fn add_asset(&mut self, asset: ResourceAddress) {
             // Validation
-            assert!(!asset.is_fungible(), "Provided asset must be fungible.");
-            assert!(self.validate_fungible(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
+            assert!(asset.is_fungible(), "Provided asset must be fungible.");
+            assert!(!self.validate_fungible(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
 
             // Update the asset list
             self.asset_list.append(asset);
@@ -128,13 +128,13 @@ mod redroot {
         // ! Asset can only be removed if vault empty; vault itself not deleted
         pub fn remove_asset(&mut self, asset: ResourceAddress) {
             // Validation
-            assert!(!self.validate_fungible(asset), "Asset is invalid");
+            assert!(self.validate_fungible(asset), "Asset is invalid");
 
             let found = self.asset_list.find(&asset);
             if let Some(index) = found {
                 assert!(
-                    !self.vaults.get_mut(&asset).unwrap().is_empty(),
-                    "Internal vault for the asset [{:?}] is not empty; cannot delete the asset.",
+                    self.vaults.get_mut(&asset).unwrap().is_empty(),
+                    "Internal vault for the asset {:?} is not empty; cannot delete the asset.",
                     asset
                 );
 
@@ -142,7 +142,7 @@ mod redroot {
                 self.asset_list.remove(&index);
                 // TODO: find some way to release the funds from the vault when its removed
             } else {
-                panic!("Cannot find asset [{:?}] in the asset list. It is likely not added.", asset);
+                panic!("Cannot find asset {:?} in the asset list. It is likely not added.", asset);
             }
         }
 
