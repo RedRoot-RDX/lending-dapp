@@ -1,6 +1,7 @@
 /* ------------------ Imports ----------------- */
+// Modules
 mod shared;
-
+// Usages
 use scrypto::prelude::*;
 use shared::LazyVec;
 
@@ -53,7 +54,6 @@ mod redroot {
 
             //. Internal Data Setup
             let mut asset_list: LazyVec<ResourceAddress> = LazyVec::new();
-            info!("[Redroot:instantise] Asset list: {:?}", asset_list.inner.get_length().to_string());
             let vaults: KeyValueStore<ResourceAddress, Vault> = KeyValueStore::new();
 
             // Redroot
@@ -68,14 +68,12 @@ mod redroot {
                 .into();
             let redroot_vault: Vault = Vault::with_bucket(redroot_bucket);
 
-            info!("[Redroot:instantise] Appending redroot");
             asset_list.append(redroot_vault.resource_address());
             vaults.insert(redroot_vault.resource_address(), redroot_vault);
 
             // XRD
             let xrd_vault: Vault = Vault::new(XRD);
 
-            info!("[Redroot:instantise] Appending xrd");
             asset_list.append(xrd_vault.resource_address());
             vaults.insert(xrd_vault.resource_address(), xrd_vault);
 
@@ -115,9 +113,8 @@ mod redroot {
 
         /// Adds a (fungible) asset into the asset list and create a corresponding vault
         pub fn add_asset(&mut self, asset: ResourceAddress) {
-            // Validation
-            info!("-------- Redroot:add_asset --------");
             info!("[Redroot:add_asset] Adding asset: {:?}", asset);
+            // Validation
             assert!(asset.is_fungible(), "Provided asset must be fungible.");
             assert!(!self.validate_fungible(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
 
@@ -128,12 +125,12 @@ mod redroot {
                 info!("[Redroot:add_asset] Creating vault for asset: {:?}", asset);
                 self.vaults.insert(asset, Vault::new(asset));
             }
-            info!("-/-/-/-/ Redroot:add_asset -/-/-/-/n");
         }
 
         /// Removes a (fungible) asset from the asset list, but does not remove its vault
         // ! Asset can only be removed if vault empty; vault itself not deleted
         pub fn remove_asset(&mut self, asset: ResourceAddress) {
+            info!("[Redroot:remove_asset] Removing asset: {:?}", asset);
             // Validation
             assert!(self.validate_fungible(asset), "Asset with address {:?} is invalid", asset);
 
@@ -145,9 +142,9 @@ mod redroot {
                     asset
                 );
 
+                // TODO: find some way to release the funds from the vault when its removed
                 // Remove the asset from the list
                 self.asset_list.remove(&index);
-                // TODO: find some way to release the funds from the vault when its removed
             } else {
                 panic!("Cannot find asset {:?} in the asset list. It is likely not added.", asset);
             }
@@ -159,26 +156,26 @@ mod redroot {
             info!("[validate_fungible] Validating asset with address {:?}", addr);
 
             if !addr.is_fungible() {
-                info!("[validate_fungible] Asset {:?} is not fungible", addr);
+                info!("[validate_fungible] INVALID: Asset {:?} is not fungible", addr);
                 return false;
             }
 
             // Check that a vault exists for the given address
             if self.vaults.get(&addr).is_none() {
-                info!("[validate_fungible] No vault found for asset {:?}", addr);
+                info!("[validate_fungible] INVALID: No vault found for asset {:?}", addr);
                 return false;
             }
 
             // Check that the asset is tracked in the asset_list
             let found = self.asset_list.find(&addr);
-            info!("[validate_fungible] found: {:?}", found);
             if found.is_none() {
-                info!("[validate_fungible] Asset {:?} not tracked in the asset list", addr);
+                info!("[validate_fungible] INVALID: Asset {:?} not tracked in the asset list", addr);
                 return false;
             }
+            info!("[validate_fungible] Asset found at index: {:?}", found);
 
             // Return true if all checks passed
-            info!("[validate_fungible] Asset {:?} successfully validated", addr);
+            info!("[validate_fungible] VALID: Asset {:?} successfully validated", addr);
             true
         }
     }

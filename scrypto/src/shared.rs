@@ -7,30 +7,29 @@ use scrypto_avltree::{AvlTree, NodeIterator, NodeIteratorMut};
 #[derive(ScryptoSbor)]
 pub struct LazyVec<T: ScryptoSbor + Clone + Debug + PartialEq> {
     pub inner: AvlTree<Decimal, T>,
+    length: Decimal,
 }
 
 impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
     /// Create an empty LazyVec instance
     pub fn new() -> Self {
-        LazyVec { inner: AvlTree::new() }
+        LazyVec { inner: AvlTree::new(), length: dec!(0) }
     }
 
-    pub fn length(&self) -> Decimal {
-        Decimal::from(self.inner.get_length())
+    pub fn get_length(&self) -> Decimal {
+        self.length
     }
 
     /// Add an element to the end of the vector, returns the index of the element
     pub fn append(&mut self, el: T) -> Decimal {
-        info!("-------- lazyvec:append --------");
-        info!("el={:?}", el);
-        info!("cur-len={:?}, {:?}", self.length().to_string(), self.inner.get_length().to_string());
-        self.inner.insert(self.length(), el);
-        info!("cur-len={:?}, {:?}\n", self.length().to_string(), self.inner.get_length().to_string());
-        info!("-/-/-/-/ lazyvec:append -/-/-/-/");
-        self.length() - 1
+        self.inner.insert(self.get_length(), el);
+        self.length = self.get_length().checked_add(dec!(1)).unwrap();
+        self.get_length()
     }
 
+    // TODO: re-assign the indexes of all other elements
     pub fn remove(&mut self, i: &Decimal) -> Option<T> {
+        self.length = self.get_length().checked_sub(dec!(1)).unwrap();
         self.inner.remove(i)
     }
 
@@ -62,6 +61,7 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
             }
         }
 
+        self.length = self.get_length().checked_sub(dec!(1)).unwrap();
         self.inner = updated_vec;
         Some(index)
     }
@@ -89,34 +89,27 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
             return None;
         }
 
+        self.length = self.get_length().checked_sub(dec!(1)).unwrap();
         self.inner = updated_vec;
         Some(index)
     }
 
     /// Searches for the first occurence of T, and returns its index if found
     pub fn find(&self, flag: &T) -> Option<Decimal> {
-        info!("-------- lazyvec:find --------");
-        info!("flag = {:?}", flag);
-        info!("els = {:#?}", self.inner.get_length());
-        info!("els = {:#?}", self.length().to_string());
-        info!("el0 = {:#?}", *self.inner.get(&dec!(0)).unwrap());
-        for (i, el, _) in self.inner.range(dec!(0)..dec!(3)) {
-            info!("el, i = {:?}, {:?}", el, i);
-            info!("{:?}", &el == flag);
+        for (i, el, _) in self.inner.range(dec!(0)..self.get_length()) {
             if &el == flag {
                 return Some(i);
             }
         }
-        info!("-/-/-/-/ lazyvec:find -/-/-/-/");
 
         None
     }
 
     pub fn iter(&self) -> NodeIterator<Decimal, T> {
-        self.inner.range(dec!(0)..self.length())
+        self.inner.range(dec!(0)..self.get_length())
     }
 
     pub fn iter_mut(&mut self) -> NodeIteratorMut<Decimal, T> {
-        self.inner.range_mut(dec!(0)..self.length())
+        self.inner.range_mut(dec!(0)..self.get_length())
     }
 }
