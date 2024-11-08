@@ -68,6 +68,8 @@ fn setup() -> (
         );
     }
 
+    println!("{:?}", ledger.get_component_balance(main_account.addr, owner_badge));
+
     //. Return
     (ledger, package_address, component, (main_account, user_account), owner_badge)
 }
@@ -77,8 +79,6 @@ fn setup() -> (
 fn instantisation_test() -> Result<(), RuntimeError> {
     // Deconstruct setup
     let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
-
-    return Ok(());
 
     let resources = ledger.get_component_resources(component);
 
@@ -116,12 +116,9 @@ fn add_asset_test() -> Result<(), RuntimeError> {
     // Deconstruct setup
     let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
 
-    return Ok(());
-
     // Create dummy asset
-    let asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
-
-    // TODO: Fix owner_badge proof
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    println!("Dummy Asset: {:?}", dummy_asset);
 
     // Add an asset
     #[rustfmt::skip]
@@ -131,19 +128,20 @@ fn add_asset_test() -> Result<(), RuntimeError> {
         .call_method(
             component,
             "add_asset",
-            manifest_args!(asset)
+            manifest_args!(dummy_asset)
         )
         .deposit_batch(main_account.addr)
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
-    println!("[add_asset] Tx Receipt:\n{}\n", receipt.display(&AddressBech32Encoder::for_simulator()));
+    // println!("[add_asset] Tx Receipt:\n{}\n", receipt.display(&AddressBech32Encoder::for_simulator()));
     receipt.expect_commit_success();
 
     // Test that component has the correct number of resources
     let resources = ledger.get_component_resources(component);
 
-    assert!(&resources.contains_key(&asset), "Added resource not found");
+    println!("Resources: {:#?}", resources);
+    assert!(&resources.contains_key(&dummy_asset), "Added resource not found");
 
     Ok(())
 }
