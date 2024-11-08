@@ -53,6 +53,7 @@ mod redroot {
 
             //. Internal Data Setup
             let mut asset_list: LazyVec<ResourceAddress> = LazyVec::new();
+            info!("[Redroot:instantise] Asset list: {:?}", asset_list.inner.get_length().to_string());
             let vaults: KeyValueStore<ResourceAddress, Vault> = KeyValueStore::new();
 
             // Redroot
@@ -67,12 +68,14 @@ mod redroot {
                 .into();
             let redroot_vault: Vault = Vault::with_bucket(redroot_bucket);
 
+            info!("[Redroot:instantise] Appending redroot");
             asset_list.append(redroot_vault.resource_address());
             vaults.insert(redroot_vault.resource_address(), redroot_vault);
 
             // XRD
             let xrd_vault: Vault = Vault::new(XRD);
 
+            info!("[Redroot:instantise] Appending xrd");
             asset_list.append(xrd_vault.resource_address());
             vaults.insert(xrd_vault.resource_address(), xrd_vault);
 
@@ -113,6 +116,8 @@ mod redroot {
         /// Adds a (fungible) asset into the asset list and create a corresponding vault
         pub fn add_asset(&mut self, asset: ResourceAddress) {
             // Validation
+            info!("-------- Redroot:add_asset --------");
+            info!("[Redroot:add_asset] Adding asset: {:?}", asset);
             assert!(asset.is_fungible(), "Provided asset must be fungible.");
             assert!(!self.validate_fungible(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
 
@@ -120,15 +125,17 @@ mod redroot {
             self.asset_list.append(asset);
             // If the asset does not already have a vault, create one
             if self.vaults.get(&asset).is_none() {
+                info!("[Redroot:add_asset] Creating vault for asset: {:?}", asset);
                 self.vaults.insert(asset, Vault::new(asset));
             }
+            info!("-/-/-/-/ Redroot:add_asset -/-/-/-/n");
         }
 
         /// Removes a (fungible) asset from the asset list, but does not remove its vault
         // ! Asset can only be removed if vault empty; vault itself not deleted
         pub fn remove_asset(&mut self, asset: ResourceAddress) {
             // Validation
-            assert!(self.validate_fungible(asset), "Asset is invalid");
+            assert!(self.validate_fungible(asset), "Asset with address {:?} is invalid", asset);
 
             let found = self.asset_list.find(&asset);
             if let Some(index) = found {
@@ -163,8 +170,9 @@ mod redroot {
             }
 
             // Check that the asset is tracked in the asset_list
-            let found = self.asset_list.find(&addr).is_some();
-            if !found {
+            let found = self.asset_list.find(&addr);
+            info!("[validate_fungible] found: {:?}", found);
+            if found.is_none() {
                 info!("[validate_fungible] Asset {:?} not tracked in the asset list", addr);
                 return false;
             }

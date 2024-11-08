@@ -2,7 +2,7 @@ use std::path::Component;
 
 /* ------------------ Imports ----------------- */
 use ::redroot::redroot_test::*;
-use scrypto::blueprints::resource;
+use scrypto::{blueprints::resource, info};
 use scrypto_test::prelude::*;
 
 /* ------------------- Misc. ------------------ */
@@ -318,4 +318,48 @@ fn asset_remove_invalid_test() -> () {
 
     log_tx("remove_asset:invalid", &receipt);
     receipt.expect_commit_failure();
+}
+
+#[test]
+fn custom_test() -> Result<(), RuntimeError> {
+    let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
+
+    // Create dummy asset
+    let dummy_asset_1 = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    let dummy_asset_2 = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    println!("[INFO] Assets created: {:#?}, {:#?}", &dummy_asset_1, &dummy_asset_2);
+
+    #[rustfmt::skip]
+        let manifest = ManifestBuilder::new()
+            .lock_fee_from_faucet()
+            .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+            .call_method(
+                component,
+                "add_asset",
+                manifest_args!(dummy_asset_1)
+            )
+            .deposit_batch(main_account.addr)
+            .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+
+    log_tx("add_asset:valid", &receipt);
+    receipt.expect_commit_success();
+
+    #[rustfmt::skip]
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+        .call_method(
+            component,
+            "add_asset",
+            manifest_args!(dummy_asset_2)
+        )
+        .deposit_batch(main_account.addr)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+
+    log_tx("add_asset:valid", &receipt);
+    receipt.expect_commit_success();
+
+    Ok(())
 }

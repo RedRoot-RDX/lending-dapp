@@ -21,7 +21,12 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
 
     /// Add an element to the end of the vector, returns the index of the element
     pub fn append(&mut self, el: T) -> Decimal {
+        info!("-------- lazyvec:append --------");
+        info!("el={:?}", el);
+        info!("cur-len={:?}, {:?}", self.length().to_string(), self.inner.get_length().to_string());
         self.inner.insert(self.length(), el);
+        info!("cur-len={:?}, {:?}\n", self.length().to_string(), self.inner.get_length().to_string());
+        info!("-/-/-/-/ lazyvec:append -/-/-/-/");
         self.length() - 1
     }
 
@@ -90,11 +95,19 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
 
     /// Searches for the first occurence of T, and returns its index if found
     pub fn find(&self, flag: &T) -> Option<Decimal> {
-        for (i, el, _) in self.iter() {
+        info!("-------- lazyvec:find --------");
+        info!("flag = {:?}", flag);
+        info!("els = {:#?}", self.inner.get_length());
+        info!("els = {:#?}", self.length().to_string());
+        info!("el0 = {:#?}", *self.inner.get(&dec!(0)).unwrap());
+        for (i, el, _) in self.inner.range(dec!(0)..dec!(3)) {
+            info!("el, i = {:?}, {:?}", el, i);
+            info!("{:?}", &el == flag);
             if &el == flag {
                 return Some(i);
             }
         }
+        info!("-/-/-/-/ lazyvec:find -/-/-/-/");
 
         None
     }
