@@ -26,14 +26,12 @@ export const columns: ColumnDef<Asset, unknown>[] = [
     accessorKey: "label",
     header: "Assets",
     cell: ({ row }) => {
-      // Define color mapping for different assets
       const colorMap: Record<AssetName, string> = {
         XRD: "bg-blue-500",
         USDT: "bg-green-500",
         USDC: "bg-green-500",
         DAI: "bg-green-500",
         HUG: "bg-purple-500",
-        // Add more assets and their colors as needed
       };
 
       return (
@@ -47,32 +45,41 @@ export const columns: ColumnDef<Asset, unknown>[] = [
   {
     accessorKey: "wallet_balance",
     header: "Wallet Balance",
+    cell: ({ row }) => {
+      const isExpanded = row.getIsExpanded();
+      return isExpanded ? null : row.getValue("wallet_balance");
+    },
   },
   {
     accessorKey: "select_native",
     header: "Selected Amount",
-    cell: ({ row }) => (
-      <div>
-        {row.original.select_native > 0 ? row.original.select_native : "-"}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const isExpanded = row.getIsExpanded();
+      if (isExpanded) return null;
+      return (
+        <div>
+          {row.original.select_native > 0 ? row.original.select_native : "-"}
+        </div>
+      );
+    },
   },
   {
     accessorKey: "apy",
     header: "APY",
+    cell: ({ row }) => {
+      const isExpanded = row.getIsExpanded();
+      return isExpanded ? null : row.getValue("apy");
+    },
   },
   {
     id: "actions",
     cell: ({ row }) => {
       const isExpanded = row.getIsExpanded();
-      
       return (
         <Button 
           variant="ghost" 
           size="sm"
-          onClick={() => {
-            row.toggleExpanded();
-          }}
+          onClick={() => row.toggleExpanded()}
         >
           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </Button>

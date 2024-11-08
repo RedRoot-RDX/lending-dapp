@@ -1,28 +1,13 @@
 import React, { useState } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
-
-const dummyData = [
-  { timestamp: "00:00", price: 100 },
-  { timestamp: "04:00", price: 120 },
-  { timestamp: "08:00", price: 110 },
-  { timestamp: "12:00", price: 130 },
-  { timestamp: "16:00", price: 125 },
-  { timestamp: "20:00", price: 140 },
-  { timestamp: "24:00", price: 135 },
-];
 
 interface Asset {
   label: string;
   address: string;
   wallet_balance: number;
   select_native: number;
+  apy: number;
 }
 
 interface CollapsibleContentProps {
@@ -34,6 +19,14 @@ interface CollapsibleContentProps {
 export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: CollapsibleContentProps) {
   const [tempAmount, setTempAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const colorMap: Record<AssetName, string> = {
+    XRD: "bg-blue-500",
+    USDT: "bg-green-500",
+    USDC: "bg-green-500",
+    DAI: "bg-green-500",
+    HUG: "bg-purple-500",
+  };
 
   const handleAmountChange = (value: string) => {
     setTempAmount(value);
@@ -61,63 +54,67 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
   };
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <div className="h-[200px] w-full">
-        <ChartContainer config={{}}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={dummyData}>
-              <XAxis dataKey="timestamp" />
-              <YAxis />
-              <Line 
-                type="monotone" 
-                dataKey="price" 
-                stroke="#000000" 
-                strokeWidth={1} 
-              />
-              <Tooltip content={<ChartTooltipContent />} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
-      <div className="h-[200px] w-full">
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-            Amount to deposit
-          </label>
-          <div className="relative">
-            <Input 
-              type="number" 
-              placeholder="0.0" 
-              className={`pr-16 ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
-              value={tempAmount}
-              onChange={(e) => handleAmountChange(e.target.value)}
-              min={0}
-              max={asset.wallet_balance}
-            />
-            <Button 
-              variant="ghost" 
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs"
-              onClick={handleMaxClick}
-            >
-              MAX
-            </Button>
-          </div>
-          {error && (
-            <p className="text-sm text-red-500 font-medium">
-              {error}
-            </p>
-          )}
-          <p className="text-sm text-muted-foreground">
-            ≈ ${(parseFloat(tempAmount) || 0).toFixed(2)} USD
-          </p>
-          <Button 
-            onClick={handleConfirm}
-            className="w-full"
-            disabled={!!error || !tempAmount || parseFloat(tempAmount) <= 0}
-          >
-            Confirm Amount
-          </Button>
+    <div className="p-6">
+      {/* Asset Header */}
+      <div className="flex items-center gap-4 mb-8">
+        <div className={`w-10 h-10 rounded-full ${colorMap[asset.label]} flex items-center justify-center`}>
+          <span className="text-white text-base font-medium">{asset.label[0]}</span>
         </div>
+        <span className="text-2xl font-semibold">{asset.label}</span>
+      </div>
+
+      {/* Right column - Asset details and input */}
+      <div className="space-y-8">
+        <div className="space-y-3">
+          <span className="text-lg font-semibold block mb-2">Amount</span>
+          <div className="space-y-2">
+            {/* Input container */}
+            <div className="relative">
+              <Input
+                type="number"
+                value={tempAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
+                className="pr-24 h-12"
+                placeholder={asset.label}
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleMaxClick}
+                  className="h-8 px-3 text-sm font-medium hover:bg-transparent"
+                >
+                  Max
+                </Button>
+              </div>
+            </div>
+            
+            {/* Value and available balance */}
+            <div className="flex justify-between text-sm text-muted-foreground px-1">
+              <span>${tempAmount ? Number(tempAmount).toFixed(1) : "0.0"}</span>
+              <span>Available {asset.wallet_balance}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 py-2">
+          <div className="flex justify-between text-base">
+            <span>Borrow APY</span>
+            <span>{asset.apy}</span>
+          </div>
+          <div className="flex justify-between text-base">
+            <span>Health Factor</span>
+            <span className="text-red-500">-0.5</span>
+          </div>
+        </div>
+
+        <Button 
+          className="w-full h-12 text-base mt-4"
+          onClick={handleConfirm}
+          disabled={!!error || !tempAmount || parseFloat(tempAmount) <= 0}
+        >
+          Confirm Amount
+        </Button>
       </div>
     </div>
   );
