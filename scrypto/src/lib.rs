@@ -12,8 +12,8 @@ mod redroot {
             admin => updatable_by: [OWNER];
         },
         methods {
-            add_asset => restrict_to: [admin];
-            remove_asset => restrict_to: [admin];
+            add_asset => restrict_to: [OWNER, admin];
+            remove_asset => restrict_to: [OWNER, admin];
         }
     }
 
