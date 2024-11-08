@@ -2,9 +2,14 @@ use std::path::Component;
 
 /* ------------------ Imports ----------------- */
 use ::redroot::redroot_test::*;
+use scrypto::blueprints::resource;
 use scrypto_test::prelude::*;
 
 /* ------------------- Misc. ------------------ */
+// Test config
+const LOG_TX: bool = false;
+
+// Struct to hold account data
 struct Account {
     public_key: Secp256k1PublicKey,
     private_key: Secp256k1PrivateKey,
@@ -17,12 +22,19 @@ impl Account {
     }
 }
 
-/// Create default state for unit tests
+/// Log transaction with name [func]
+fn log_tx(func: &str, tx: &TransactionReceiptV1) {
+    if LOG_TX {
+        println!("[{}] Transaction Receipt:\n{}\n", func, tx.display(&AddressBech32Encoder::for_simulator()));
+    }
+}
+
+/// Initialise default state for unit tests
 fn setup() -> (
     LedgerSimulator<NoExtension, InMemorySubstateDatabase>, // Ledger simulation
     PackageAddress,                                         // Package
     ComponentAddress,                                       // Redroot
-    (Account, Account),                                     // Main, User 1
+    (Account, Account),                                     // Accounts: Main, User 1
     ResourceAddress,                                        // Owner Badge
 ) {
     //. Simulation Setup
@@ -52,29 +64,30 @@ fn setup() -> (
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
-    println!("[instantise] Tx Receipt:\n{}\n", receipt.display(&AddressBech32Encoder::for_simulator()));
+    log_tx("instantise", &receipt);
     receipt.expect_commit_success();
 
     let component = receipt.expect_commit(true).new_component_addresses()[0];
     let owner_badge = receipt.expect_commit(true).new_resource_addresses()[0];
 
-    println!("Owner Badge: {:?}", owner_badge);
+    // println!("Owner Badge: {:?}", owner_badge);
 
-    for addr in receipt.expect_commit(true).new_resource_addresses() {
-        println!("New Resource Address: {:?}", addr);
-        println!(
-            "Resource Name: {:?}",
-            ledger.get_metadata(GlobalAddress::from_metadata_value(addr.to_metadata_entry().unwrap()).unwrap(), "name").unwrap()
-        );
-    }
+    // for addr in receipt.expect_commit(true).new_resource_addresses() {
+    //     println!("New Resource Address: {:?}", addr);
+    //     println!(
+    //         "Resource Name: {:?}",
+    //         ledger.get_metadata(GlobalAddress::from_metadata_value(addr.to_metadata_entry().unwrap()).unwrap(), "name").unwrap()
+    //     );
+    // }
 
-    println!("{:?}", ledger.get_component_balance(main_account.addr, owner_badge));
+    // println!("{:?}", ledger.get_component_balance(main_account.addr, owner_badge));
 
     //. Return
     (ledger, package_address, component, (main_account, user_account), owner_badge)
 }
 
 /* ------------------- Tests ------------------ */
+/// Basic test to check that Redroot instantises correctly
 #[test]
 fn instantisation_test() -> Result<(), RuntimeError> {
     // Deconstruct setup
@@ -111,16 +124,17 @@ fn instantisation_test() -> Result<(), RuntimeError> {
     Ok(())
 }
 
+/// Tests that a fungible asset can be added when everything is valid
 #[test]
-fn add_asset_test() -> Result<(), RuntimeError> {
+fn asset_add_test() -> Result<(), RuntimeError> {
     // Deconstruct setup
     let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
 
     // Create dummy asset
     let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
-    println!("Dummy Asset: {:?}", dummy_asset);
+    println!("Created Assets:\n- Dummy Asset: {:?}\n", dummy_asset);
 
-    // Add an asset
+    // Valid addition
     #[rustfmt::skip]
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
@@ -134,7 +148,7 @@ fn add_asset_test() -> Result<(), RuntimeError> {
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
-    // println!("[add_asset] Tx Receipt:\n{}\n", receipt.display(&AddressBech32Encoder::for_simulator()));
+    log_tx("add_asset:valid", &receipt);
     receipt.expect_commit_success();
 
     // Test that component has the correct number of resources
@@ -144,4 +158,164 @@ fn add_asset_test() -> Result<(), RuntimeError> {
     assert!(&resources.contains_key(&dummy_asset), "Added resource not found");
 
     Ok(())
+}
+
+/// Tests that a fungible asset cannot be added when perms are incorrect
+#[test]
+fn asset_add_noperm_test() -> Result<(), RuntimeError> {
+    // Deconstruct setup
+    let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
+
+    // Create dummy asset
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    println!("Created Assets:\n- Dummy Asset: {:?}\n", dummy_asset);
+
+    // Invalid addition; invalid permission for 'user_account'
+    #[rustfmt::skip]
+        let manifest = ManifestBuilder::new()
+            .lock_fee_from_faucet()
+            .call_method(
+                component,
+                "add_asset",
+                manifest_args!(dummy_asset)
+            )
+            .deposit_batch(user_account.addr)
+            .build();
+    let receipt = ledger.execute_manifest(manifest, vec![user_account.nf_global_id()]);
+
+    log_tx("add_asset:invalid", &receipt);
+    receipt.expect_commit_failure();
+
+    Ok(())
+}
+
+/// Tests that a fungible asset can be removed when everything is valid
+#[test]
+fn asset_remove_test() -> Result<(), RuntimeError> {
+    // Deconstruct setup
+    let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
+
+    // Create dummy asset
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    println!("Created Assets:\n- Dummy Asset: {:?}\n", dummy_asset);
+
+    //. Add asset
+    // Valid addition
+    #[rustfmt::skip]
+        let manifest = ManifestBuilder::new()
+            .lock_fee_from_faucet()
+            .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+            .call_method(
+                component,
+                "add_asset",
+                manifest_args!(dummy_asset)
+            )
+            .deposit_batch(main_account.addr)
+            .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+
+    log_tx("add_asset:valid", &receipt);
+    receipt.expect_commit_success();
+
+    //. Remove asset
+    // Valid removal
+    #[rustfmt::skip]
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+        .call_method(
+            component,
+            "remove_asset",
+            manifest_args!(dummy_asset)
+        )
+        .deposit_batch(main_account.addr)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+
+    log_tx("remove_asset", &receipt);
+    receipt.expect_commit_success();
+
+    // Test that component has the correct number of resources
+    let resources = ledger.get_component_resources(component);
+
+    println!("Resources: {:#?}", resources);
+    assert!(!&resources.contains_key(&dummy_asset), "Added resource found after removal");
+
+    Ok(())
+}
+
+/// Tests that a fungible asset cannot be removed when perms are incorrect
+#[test]
+fn asset_remove_noperm_test() -> Result<(), RuntimeError> {
+    // Deconstruct setup
+    let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
+
+    // Create dummy asset
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+
+    // Add asset
+    #[rustfmt::skip]
+        let manifest = ManifestBuilder::new()
+            .lock_fee_from_faucet()
+            .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+            .call_method(
+                component,
+                "add_asset",
+                manifest_args!(dummy_asset)
+            )
+            .deposit_batch(main_account.addr)
+            .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+
+    log_tx("add_asset:valid", &receipt);
+    receipt.expect_commit_success();
+
+    let resources = ledger.get_component_resources(component);
+    assert!(resources.contains_key(&dummy_asset), "Added resource not found");
+
+    // Remove asset with a user who doesn't have the necessary badge
+    #[rustfmt::skip]
+        let manifest = ManifestBuilder::new()
+            .lock_fee_from_faucet()
+            .create_proof_from_account_of_amount(user_account.addr, owner_badge, dec!(1))
+            .call_method(
+                component,
+                "remove_asset",
+                manifest_args!(dummy_asset)
+            )
+            .deposit_batch(user_account.addr)
+            .build();
+    let receipt = ledger.execute_manifest(manifest, vec![user_account.nf_global_id()]);
+
+    log_tx("remove_asset:noperm", &receipt);
+    receipt.expect_commit_failure();
+
+    Ok(())
+}
+
+/// Tests that the program correctly panics when a fungible asset that doesn't exist is removed
+#[test]
+fn asset_remove_invalid_test() -> () {
+    // Deconstruct setup
+    let (mut ledger, package_address, component, (main_account, user_account), owner_badge) = setup();
+
+    // Create dummy asset
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+
+    // Invalid removal; 'invalid_asset' not added
+    #[rustfmt::skip]
+        let manifest = ManifestBuilder::new()
+            .lock_fee_from_faucet()
+            .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+            .call_method(
+                component,
+                "remove_asset",
+                manifest_args!(dummy_asset)
+            )
+            .deposit_batch(main_account.addr)
+            .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+
+    log_tx("remove_asset:invalid", &receipt);
+    receipt.expect_commit_failure();
 }
