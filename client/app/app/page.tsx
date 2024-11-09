@@ -9,7 +9,7 @@ import { columns } from "@/components/asset-table/columns";
 import SupplyDialog from "@/components/supply-dialog";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
-import { getAssetAddrRecord, Asset, AssetName } from "@/types/asset";
+import { getAssetAddrRecord, Asset, AssetName, getAssetApy } from "@/types/asset";
 import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 import { useToast } from "@/components/ui/use-toast";
@@ -29,6 +29,7 @@ export default function App() {
       apy: 0,
     }))
   );
+  const [portfolioData, setPortfolioData] = useState<Asset[]>([]);
 
   const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
   const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
@@ -38,6 +39,60 @@ export default function App() {
     console.log("RDT", rdt);
     console.log("GatewayApi", gatewayApi);
   }, [accounts]);
+
+  useEffect(() => {
+    const fetchPortfolioData = async () => {
+      try {
+        // This would be your actual API call to get supplied assets
+        // const response = await fetch('/api/portfolio');
+        // const data = await response.json();
+        
+        // For now, using dummy supplied assets data (address -> amount mapping)
+        const dummySuppliedAssets = [
+          {
+            address: "resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd",
+            supplied_amount: 500.25,
+          },
+          {
+            address: "resource_usdc",
+            supplied_amount: 1000.00,
+          }
+        ];
+
+        // Convert to portfolio data by looking up asset info from configs
+        const portfolioData: Asset[] = dummySuppliedAssets
+          .map(suppliedAsset => {
+            // Find asset config by address
+            const assetConfig = Object.entries(getAssetAddrRecord()).find(
+              ([_, address]) => address === suppliedAsset.address
+            );
+
+            if (!assetConfig) return null;
+            const [label] = assetConfig;
+
+            return {
+              address: suppliedAsset.address,
+              label: label as AssetName,
+              wallet_balance: 0,
+              select_native: suppliedAsset.supplied_amount,
+              apy: getAssetApy(label as AssetName),
+            };
+          })
+          .filter((asset): asset is Asset => asset !== null);
+
+        setPortfolioData(portfolioData);
+      } catch (error) {
+        console.error("Error fetching portfolio data:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch portfolio data",
+        });
+      }
+    };
+
+    fetchPortfolioData();
+  }, [accounts]); 
 
   const getSelectedAssets = () => {
     return Object.keys(supplyRowSelection).map(index => supplyData[Number(index)]);
@@ -151,7 +206,7 @@ export default function App() {
             <CardContent>
               <PortfolioTable
                 columns={portfolioColumns}
-                data={supplyData.map(asset => ({ ...asset, type: 'supply' as const }))}
+                data={portfolioData.map(asset => ({ ...asset, type: 'supply' as const }))}
               />
             </CardContent>
           </Card>
