@@ -47,6 +47,7 @@ export function AssetTable<TData extends Asset, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expandedRows, setExpandedRows] = React.useState<Record<string, boolean>>({});
   const [selectionOrder, setSelectionOrder] = React.useState<string[]>([]);
+  const [amounts, setAmounts] = React.useState<Record<string, number>>({});
 
   const handleAmountChange = (address: string, amount: number) => {
     setTableData(current =>
@@ -69,14 +70,20 @@ export function AssetTable<TData extends Asset, TValue>({
       ? updaterOrValue(rowSelection)
       : updaterOrValue;
 
+    // Reset amounts for unselected rows
+    Object.keys(rowSelection).forEach(index => {
+      if (rowSelection[index] && !newSelection[index]) {
+        const asset = data[parseInt(index)];
+        handleAmountChange(asset.address, 0);
+      }
+    });
+
     // Update selection order
     const previouslySelected = Object.keys(rowSelection).filter(id => rowSelection[id]);
     const newlySelected = Object.keys(newSelection).filter(id => newSelection[id]);
     
     setSelectionOrder(current => {
-      // Remove unselected items
       const filtered = current.filter(id => newlySelected.includes(id));
-      // Add newly selected items
       const newItems = newlySelected.filter(id => !current.includes(id));
       return [...filtered, ...newItems];
     });
@@ -86,7 +93,7 @@ export function AssetTable<TData extends Asset, TValue>({
     if (newlySelectedId) {
       setExpandedRows({ [newlySelectedId]: true });
     } else if (previouslySelected.length > newlySelected.length) {
-      // If we're unselecting, collapse all
+      // If we're unselecting, collapse all and reset amount
       setExpandedRows({});
     }
     

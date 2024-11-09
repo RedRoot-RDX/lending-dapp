@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AssetName } from "@/lib/utils";
+import { AssetName, getAssetColors } from "@/types/asset";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -26,17 +26,10 @@ export const columns: ColumnDef<Asset, unknown>[] = [
     accessorKey: "label",
     header: "Assets",
     cell: ({ row }) => {
-      const colorMap: Record<AssetName, string> = {
-        XRD: "bg-blue-500",
-        USDT: "bg-green-500",
-        USDC: "bg-green-500",
-        DAI: "bg-green-500",
-        HUG: "bg-purple-500",
-      };
-
+      const colors = getAssetColors(row.getValue("label") as AssetName);
       return (
         <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full ${colorMap[row.getValue("label") as AssetName] || "bg-gray-400"}`} />
+          <div className={`w-6 h-6 rounded-full border-2 ${colors.border} bg-transparent`} />
           <span>{row.getValue("label")}</span>
         </div>
       );
@@ -67,9 +60,9 @@ export const columns: ColumnDef<Asset, unknown>[] = [
     accessorKey: "apy",
     header: "APY",
     cell: ({ row }) => {
-      const isExpanded = row.getIsExpanded();
-      return isExpanded ? null : row.getValue("apy");
-    },
+      const apy = row.getValue("apy");
+      return `${apy}%`;
+    }
   },
   {
     id: "actions",

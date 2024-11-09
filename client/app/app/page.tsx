@@ -27,21 +27,21 @@ export default function App() {
       label: "XRD",
       wallet_balance: 100.5,
       select_native: 0.00,
-      apy: "10.3%",
+      apy: 10.3,
     },
     {
       address: assetAddrRecord["USDT"],
       label: "USDT",
       wallet_balance: 87,
       select_native: 0.00,
-      apy: "5.5%",
+      apy: 5.5,
     },
     {
       address: assetAddrRecord["HUG"],
       label: "HUG",
       wallet_balance: 12,
       select_native: 0.00,
-      apy: "23.1%",
+      apy: 23.1,
     },
   ]);
 

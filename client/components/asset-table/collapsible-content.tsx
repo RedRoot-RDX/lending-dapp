@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AssetName, getAssetColors } from "@/types/asset";
 
 interface Asset {
-  label: string;
+  label: AssetName;
   address: string;
   wallet_balance: number;
   select_native: number;
@@ -20,13 +21,11 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
   const [tempAmount, setTempAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const colorMap: Record<AssetName, string> = {
-    XRD: "bg-blue-500",
-    USDT: "bg-green-500",
-    USDC: "bg-green-500",
-    DAI: "bg-green-500",
-    HUG: "bg-purple-500",
-  };
+  // Reset tempAmount when asset changes
+  useEffect(() => {
+    setTempAmount("");
+    setError(null);
+  }, [asset.address]);
 
   const handleAmountChange = (value: string) => {
     setTempAmount(value);
@@ -37,6 +36,7 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
       setError("Amount exceeds wallet balance");
     } else {
       setError(null);
+      onAmountChange(amount);
     }
   };
 
@@ -57,7 +57,7 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
     <div className="p-6">
       {/* Asset Header */}
       <div className="flex items-center gap-4 mb-8">
-        <div className={`w-10 h-10 rounded-full ${colorMap[asset.label]} flex items-center justify-center`}>
+        <div className={`w-10 h-10 rounded-full ${getAssetColors(asset.label)} flex items-center justify-center`}>
           <span className="text-white text-base font-medium">{asset.label[0]}</span>
         </div>
         <span className="text-2xl font-semibold">{asset.label}</span>
