@@ -13,6 +13,7 @@ import { getAssetAddrRecord, Asset, AssetName, getAssetApy, getWalletBalance } f
 import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 import { useToast } from "@/components/ui/use-toast";
+import { ShootingStars } from "@/components/ui/shooting-stars";
 
 export default function App() {
   const { accounts } = useRadixContext();
@@ -30,6 +31,8 @@ export default function App() {
     }))
   );
   const [portfolioData, setPortfolioData] = useState<Asset[]>([]);
+  const [totalSupply, setTotalSupply] = useState<number>(0);
+  const [totalSupplyApy, setTotalSupplyApy] = useState<number>(0);
 
   const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
   const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
@@ -43,10 +46,8 @@ export default function App() {
   useEffect(() => {
     const fetchPortfolioData = async () => {
       try {
-        // This would be your actual API call to get supplied assets
-        // const response = await fetch('/api/portfolio');
-        // const data = await response.json();
-        
+        // TODO: Fetch actual portfolio data from backend
+
         // For now, using dummy supplied assets data (address -> amount mapping)
         const dummySuppliedAssets = [
           {
@@ -92,14 +93,33 @@ export default function App() {
     };
 
     fetchPortfolioData();
-  }, [accounts]); 
+
+    const fetchPortfolioStats = async () => {
+      try {
+        // TODO: Fetch actual stats from backend
+        const dummyStats = {
+          totalSupply: 1234.56,
+          totalApy: 10.3
+        };
+
+        setTotalSupply(dummyStats.totalSupply);
+        setTotalSupplyApy(dummyStats.totalApy);
+      } catch (error) {
+        console.error("Error fetching portfolio stats:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch portfolio statistics",
+        });
+      }
+    };
+
+    fetchPortfolioStats();
+  }, [accounts]);
+
 
   const getSelectedAssets = () => {
     return Object.keys(supplyRowSelection).map(index => supplyData[Number(index)]);
-  };
-
-  const previewSupply = () => {
-    setIsPreviewDialogOpen(true);
   };
 
   const handleSupplyConfirm = () => {
@@ -108,13 +128,13 @@ export default function App() {
       address: asset.address,
       amount: asset.select_native
     }));
-    
+
     console.log("Supply confirmed!");
     console.log("Assets to supply:", assetsToSupply);
-    
+
     // Reset supply row selection
     setSupplyRowSelection({});
-    
+
     // Close the dialog
     setIsPreviewDialogOpen(false);
   };
@@ -123,10 +143,10 @@ export default function App() {
     const selectedAssets = Object.keys(supplyRowSelection).filter(
       (key) => supplyRowSelection[key]
     );
-    
+
     console.log("Selected assets:", selectedAssets);
     console.log("Supply data:", supplyData);
-    
+
     // Check if any selected assets have amount <= 0
     const hasInvalidAmount = selectedAssets.some((key) => {
       const asset = supplyData[parseInt(key)];
@@ -164,129 +184,132 @@ export default function App() {
   };
 
   return (
-    <main className="container py-4 flex-grow">
-      <div className="grid grid-cols-2 gap-4">
-        {/* Statistics Header */}
-        <Card className="col-span-2">
-          <CardHeader>
-            <CardTitle>Overall Statistics</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-row gap-8 [&>*]:flex [&>*]:flex-col [&>*>h1]:font-semibold">
-            <div>
-              <h1>Net Worth</h1>
-              <p>-</p>
-            </div>
-            <div>
-              <h1>Net APY</h1>
-              <p>-</p>
-            </div>
-            <div>
-              <h1>Health</h1>
-              <p>-</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Collateral Column */}
-        <div className="space-y-8">
-          {/* Your Collateral Card */}
-          <Card>
+    <div>
+      <main className="container py-4 flex-grow">
+        <div className="grid grid-cols-2 gap-4">
+          {/* Statistics Header */}
+          <Card className="col-span-2">
             <CardHeader>
-              <div className="grid grid-cols-2">
-                <CardTitle>Your Collateral</CardTitle>
-                <div className="flex justify-end">
-                  <div className="space-y-0 text-left min-h-[60px]">
-                    <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
-                      <CardDescription className="text-left">Total Supply:</CardDescription>
-                      <CardDescription className="text-right mr-4">$0.0</CardDescription>
-                      <CardDescription className="text-left">Total APY:</CardDescription>
-                      <CardDescription className="text-right mr-4">10.3%</CardDescription>
+              <CardTitle>Overall Statistics</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-row gap-8 [&>*]:flex [&>*]:flex-col [&>*>h1]:font-semibold">
+              <div>
+                <h1>Net Worth</h1>
+                <p>-</p>
+              </div>
+              <div>
+                <h1>Net APY</h1>
+                <p>-</p>
+              </div>
+              <div>
+                <h1>Health</h1>
+                <p>-</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Collateral Column */}
+          <div className="space-y-8">
+            {/* Your Collateral Card */}
+            <Card>
+              <CardHeader>
+                <div className="grid grid-cols-2">
+                  <CardTitle>Your Collateral</CardTitle>
+                  <div className="flex justify-end">
+                    <div className="space-y-0 text-left min-h-[60px]">
+                      <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
+                        <CardDescription className="text-left">Total Supply:</CardDescription>
+                        <CardDescription className="text-right mr-4">${totalSupply.toFixed(2)}</CardDescription>
+                        <CardDescription className="text-left">Total APY:</CardDescription>
+                        <CardDescription className="text-right mr-4">{totalSupplyApy.toFixed(1)}%</CardDescription>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <PortfolioTable
-                columns={portfolioColumns}
-                data={portfolioData.map(asset => ({ ...asset, type: 'supply' as const }))}
-              />
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <PortfolioTable
+                  columns={portfolioColumns}
+                  data={portfolioData.map(asset => ({ ...asset, type: 'supply' as const }))}
+                />
+              </CardContent>
+            </Card>
 
-          {/* Available Collateral Card */}
-          <Card>
-            <CardHeader>
-              <div className="grid grid-cols-2 gap-4">
-                <CardTitle>Available Collateral</CardTitle>
-                {hasSelectedSupplyAssets && (
-                  <Button onClick={handlePreviewSupply}>Preview Supply</Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <AssetTable
-                columns={columns}
-                data={supplyData}
-                rowSelection={supplyRowSelection}
-                onRowSelectionChange={handleSupplyRowSelectionChange}
-                onAmountChange={handleAmountChange}
-              />
-            </CardContent>
-          </Card>
-        </div>
+            {/* Available Collateral Card */}
+            <Card>
+              <CardHeader>
+                <div className="grid grid-cols-2 gap-4">
+                  <CardTitle>Available Collateral</CardTitle>
+                  {hasSelectedSupplyAssets && (
+                    <Button onClick={handlePreviewSupply}>Preview Supply</Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <AssetTable
+                  columns={columns}
+                  data={supplyData}
+                  rowSelection={supplyRowSelection}
+                  onRowSelectionChange={handleSupplyRowSelectionChange}
+                  onAmountChange={handleAmountChange}
+                />
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Borrow Column */}
-        <div className="space-y-8">
-          {/* Your Borrows Card */}
-          <Card>
-            <CardHeader>
-              <div className="grid grid-cols-2">
-                <CardTitle>Your Borrows</CardTitle>
-                <div className="flex justify-end">
-                  <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
-                    <CardDescription className="text-left">Total Debt:</CardDescription>
-                    <CardDescription className="text-right">$0.0</CardDescription>
-                    <CardDescription className="text-left">Total APY:</CardDescription>
-                    <CardDescription className="text-right">10.3%</CardDescription>
-                    <CardDescription className="text-left">Borrow Power Used:</CardDescription>
-                    <CardDescription className="text-right">51.4%</CardDescription>
+          {/* Borrow Column */}
+          <div className="space-y-8">
+            {/* Your Borrows Card */}
+            <Card>
+              <CardHeader>
+                <div className="grid grid-cols-2">
+                  <CardTitle>Your Borrows</CardTitle>
+                  <div className="flex justify-end">
+                    <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
+                      <CardDescription className="text-left">Total Debt:</CardDescription>
+                      <CardDescription className="text-right">$0.0</CardDescription>
+                      <CardDescription className="text-left">Total APY:</CardDescription>
+                      <CardDescription className="text-right">10.3%</CardDescription>
+                      <CardDescription className="text-left">Borrow Power Used:</CardDescription>
+                      <CardDescription className="text-right">51.4%</CardDescription>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <PortfolioTable
-                columns={portfolioColumns}
-                data={supplyData.map(asset => ({ ...asset, type: 'borrow' as const }))}
-              />
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <PortfolioTable
+                  columns={portfolioColumns}
+                  data={supplyData.map(asset => ({ ...asset, type: 'borrow' as const }))}
+                />
+              </CardContent>
+            </Card>
 
-          {/* Available Borrows Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Available Borrows</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AssetTable
-                columns={columns}
-                data={supplyData}
-                rowSelection={borrowRowSelection}
-                onRowSelectionChange={setBorrowRowSelection}
-                onAmountChange={handleAmountChange}
-              />
-            </CardContent>
-          </Card>
+            {/* Available Borrows Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Borrows</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AssetTable
+                  columns={columns}
+                  data={supplyData}
+                  rowSelection={borrowRowSelection}
+                  onRowSelectionChange={setBorrowRowSelection}
+                  onAmountChange={handleAmountChange}
+                />
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
 
-      <SupplyDialog
-        isOpen={isPreviewDialogOpen}
-        onClose={() => setIsPreviewDialogOpen(false)}
-        onConfirm={handleSupplyConfirm}
-        selectedAssets={getSelectedAssets()}
-      />
-    </main>
+        <SupplyDialog
+          isOpen={isPreviewDialogOpen}
+          onClose={() => setIsPreviewDialogOpen(false)}
+          onConfirm={handleSupplyConfirm}
+          selectedAssets={getSelectedAssets()}
+        />
+      </main>
+      <ShootingStars className="pointer-events-none" />
+    </div>
   );
 }

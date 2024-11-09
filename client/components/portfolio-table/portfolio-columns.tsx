@@ -1,6 +1,9 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Asset, getAssetIcon } from "@/types/asset";
 import { Button } from "../ui/button";
+import { useState } from "react";
+import { WithdrawDialog } from "./withdraw-dialog";
+import { useToast } from "../ui/use-toast";
 
 export const portfolioColumns: ColumnDef<Asset>[] = [
   {
@@ -28,19 +31,42 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      const handleAction = () => {
-        const actionType = row.original.type === 'supply' ? 'withdraw' : 'repay';
-        console.log(`${actionType} action triggered for:`, {
+      const [isDialogOpen, setIsDialogOpen] = useState(false);
+      const { toast } = useToast();
+
+      const handleWithdraw = (amount: number) => {
+        // TODO: Call backend to withdraw
+        console.log(`Withdraw action triggered for:`, {
           asset: row.original.label,
+          amount: amount,
         });
+        
+        toast({
+          title: "Withdrawal Initiated",
+          description: `Withdrawing ${amount} ${row.original.label}`,
+        });
+        
+        setIsDialogOpen(false);
       };
 
       return (
-        <div className="text-right">
-          <Button variant="secondary" onClick={handleAction}>
-            {row.original.type === 'supply' ? 'Withdraw' : 'Repay'}
-          </Button>
-        </div>
+        <>
+          <div className="text-right">
+            <Button 
+              variant="secondary" 
+              onClick={() => setIsDialogOpen(true)}
+            >
+              {row.original.type === 'supply' ? 'Withdraw' : 'Repay'}
+            </Button>
+          </div>
+
+          <WithdrawDialog
+            isOpen={isDialogOpen}
+            onClose={() => setIsDialogOpen(false)}
+            onConfirm={handleWithdraw}
+            asset={row.original}
+          />
+        </>
       );
     },
   },
