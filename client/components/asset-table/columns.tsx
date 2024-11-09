@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AssetName, getAssetColors } from "@/types/asset";
+import { AssetName, getAssetIcon } from "@/types/asset";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -15,7 +15,9 @@ export const columns: ColumnDef<Asset, unknown>[] = [
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        onCheckedChange={(checked) => {
+          row.toggleSelected(!!checked);
+        }}
         aria-label="Select row"
       />
     ),
@@ -26,10 +28,10 @@ export const columns: ColumnDef<Asset, unknown>[] = [
     accessorKey: "label",
     header: "Assets",
     cell: ({ row }) => {
-      const colors = getAssetColors(row.getValue("label") as AssetName);
+      const iconUrl = getAssetIcon(row.getValue("label") as AssetName);
       return (
         <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full border-2 ${colors.border} bg-transparent`} />
+          <img src={iconUrl} className="w-6 h-6 rounded-full" alt="" />
           <span>{row.getValue("label")}</span>
         </div>
       );
@@ -48,10 +50,11 @@ export const columns: ColumnDef<Asset, unknown>[] = [
     header: "Selected Amount",
     cell: ({ row }) => {
       const isExpanded = row.getIsExpanded();
+      const isSelected = row.getIsSelected();
       if (isExpanded) return null;
       return (
         <div>
-          {row.original.select_native > 0 ? row.original.select_native : "-"}
+          {isSelected && row.original.select_native > 0 ? row.original.select_native : "-"}
         </div>
       );
     },

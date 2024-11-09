@@ -46,8 +46,6 @@ export function AssetTable<TData extends Asset, TValue>({
   const [tableData, setTableData] = React.useState(data);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expandedRows, setExpandedRows] = React.useState<Record<string, boolean>>({});
-  const [selectionOrder, setSelectionOrder] = React.useState<string[]>([]);
-  const [amounts, setAmounts] = React.useState<Record<string, number>>({});
 
   const handleAmountChange = (address: string, amount: number) => {
     setTableData(current =>
@@ -70,32 +68,33 @@ export function AssetTable<TData extends Asset, TValue>({
       ? updaterOrValue(rowSelection)
       : updaterOrValue;
 
-    // Reset amounts for unselected rows
-    Object.keys(rowSelection).forEach(index => {
-      if (rowSelection[index] && !newSelection[index]) {
-        const asset = data[parseInt(index)];
-        handleAmountChange(asset.address, 0);
-      }
-    });
-
-    // Update selection order
-    const previouslySelected = Object.keys(rowSelection).filter(id => rowSelection[id]);
-    const newlySelected = Object.keys(newSelection).filter(id => newSelection[id]);
+    // Reset amounts for unselected assets
+    setTableData(current =>
+      current.map(row => {
+        const isSelected = newSelection[table.getRowModel().rows.findIndex(r => r.original.address === row.address)];
+        return isSelected ? row : { ...row, select_native: 0 };
+      })
+    );
     
-    setSelectionOrder(current => {
-      const filtered = current.filter(id => newlySelected.includes(id));
-      const newItems = newlySelected.filter(id => !current.includes(id));
-      return [...filtered, ...newItems];
-    });
+    // Update expanded rows based on selection state
+    setExpandedRows(prev => {
+      const updatedRows: Record<string, boolean> = {};
+      
+      Object.keys(prev).forEach(rowId => {
+        updatedRows[rowId] = false;
+      });
+      
+      const selectedRowIds = Object.entries(newSelection)
+        .filter(([_, isSelected]) => isSelected)
+        .map(([id]) => id);
+      
+      if (selectedRowIds.length > 0) {
+        const lastSelectedId = selectedRowIds[selectedRowIds.length - 1];
+        updatedRows[lastSelectedId] = true;
+      }
 
-    // Automatically expand the newly selected row
-    const newlySelectedId = newlySelected.find(id => !previouslySelected.includes(id));
-    if (newlySelectedId) {
-      setExpandedRows({ [newlySelectedId]: true });
-    } else if (previouslySelected.length > newlySelected.length) {
-      // If we're unselecting, collapse all and reset amount
-      setExpandedRows({});
-    }
+      return updatedRows;
+    });
     
     onRowSelectionChange(newSelection);
   };
@@ -147,18 +146,11 @@ export function AssetTable<TData extends Asset, TValue>({
   const sortedRows = React.useMemo(() => {
     const rows = [...table.getRowModel().rows];
     return rows.sort((a, b) => {
-      const aSelected = a.getIsSelected();
-      const bSelected = b.getIsSelected();
-      
-      // If both rows are selected, use the selection order
-      if (aSelected && bSelected) {
-        return selectionOrder.indexOf(a.id) - selectionOrder.indexOf(b.id);
-      }
-      
-      // If only one is selected, put it first
-      return bSelected ? 1 : aSelected ? -1 : 0;
+      const aSelected = a.getIsSelected() ? 1 : 0;
+      const bSelected = b.getIsSelected() ? 1 : 0;
+      return bSelected - aSelected;
     });
-  }, [table.getRowModel().rows, rowSelection, selectionOrder]);
+  }, [table.getRowModel().rows, rowSelection]);
 
   const handleExpansionChange = (rowId: string) => {
     setExpandedRows(prev => {
@@ -216,8 +208,8 @@ export function AssetTable<TData extends Asset, TValue>({
                   </TableRow>
                   <CollapsibleContent asChild>
                     <TableRow>
-                      <TableCell colSpan={columns.length} className="p-0">
-                        <div className="bg-gray-100">
+                      <TableCell colSpan={columns.length}>
+                        <div className="p-4 bg-gray-100 rounded-lg">
                           <AssetCollapsibleContent 
                             asset={row.original} 
                             onAmountChange={(amount) => handleAmountChange(row.original.address, amount)}

@@ -11,7 +11,7 @@ import {
 } from "@/components/select-with-inline";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { AssetNames } from "@/lib/utils";
+import { assetConfigs, AssetName } from "@/types/asset";
 import { useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -22,7 +22,8 @@ import { Comobobox } from "./combobox";
 // Form
 const VALUE_REGEX = /^[+-]?(\d*\.)?\d+$/;
 
-const zAssetEnum = z.enum(AssetNames);
+const AssetNames = Object.keys(assetConfigs) as AssetName[];
+const zAssetEnum = z.enum(AssetNames as [AssetName, ...AssetName[]]);
 const assetFormSchema = z.object({
   assets: z.array(
     z.object({
