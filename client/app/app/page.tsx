@@ -48,8 +48,16 @@ export default function App() {
   };
 
   const handleSupplyConfirm = () => {
-    // Handle supply confirmation logic here
-    console.log("Supply confirmed for assets:", getSelectedAssets());
+    const selectedAssets = getSelectedAssets();
+    const assetsToSupply = selectedAssets.map(asset => ({
+      address: asset.address,
+      amount: asset.select_native
+    }));
+    
+    console.log("Supply confirmed!");
+    console.log("Assets to supply:", assetsToSupply);
+    
+    // call the backend to supply the assets
     setIsPreviewDialogOpen(false);
   };
 

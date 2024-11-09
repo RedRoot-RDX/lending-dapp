@@ -18,62 +18,82 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 
-interface PreviewAsset {
-  symbol: string;
-  amount: number;
-  health: number;
-  color: string;
+interface Asset {
+  label: string;
+  address: string;
+  select_native: number;
+  apy: number;
 }
-
-const previewData: PreviewAsset[] = [
-  { color: 'bg-green-400', symbol: 'XRD', amount: 123.00123123123, health: 0.401 },
-  { color: 'bg-red-400', symbol: 'MEME', amount: 99.00123123123, health: 0.231 },
-  { color: 'bg-orange-400', symbol: 'USDT', amount: 5.00123123123, health: 0.123 }
-];
-
-const columns: ColumnDef<PreviewAsset>[] = [
-  {
-    accessorKey: 'symbol',
-    header: 'Asset',
-    cell: ({ row }) => (
-      <div className="flex items-center gap-3">
-        <div className={`w-6 h-6 rounded-full ${row.original.color}`} />
-        <span className="font-semibold">{row.getValue('symbol')}</span>
-      </div>
-    ),
-  },
-  {
-    accessorKey: 'amount',
-    header: 'Amount',
-    cell: ({ row }) => (
-      <div className="flex items-center gap-3">
-        <span className="font-semibold">${row.getValue('amount')}</span>
-      </div>
-    ),
-  },
-  {
-    accessorKey: 'health',
-    header: () => <div className="text-right">Effect on health</div>,
-    cell: ({ row }) => (
-      <div className="text-right text-red-500 font-medium">
-        {row.getValue('health')}
-      </div>
-    ),
-  },
-];
 
 interface SupplyDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  selectedAssets: Asset[];
 }
 
-const SupplyDialog: React.FC<SupplyDialogProps> = ({ isOpen, onClose, onConfirm }) => {
+const columns: ColumnDef<Asset>[] = [
+  {
+    accessorKey: 'label',
+    header: 'Asset',
+    cell: ({ row }) => (
+      <div className="flex items-center gap-3">
+        <img
+          src={`/api/placeholder/24/24`}
+          alt={`${row.getValue('label')} icon`}
+          className="w-6 h-6 rounded-full"
+        />
+        <span className="font-semibold">{row.getValue('label')}</span>
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'select_native',
+    header: 'Amount',
+    cell: ({ row }) => (
+      <div className="flex items-center gap-3">
+        <span className="font-semibold">
+          ${Number(row.getValue('select_native')).toFixed(2)}
+        </span>
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'apy',
+    header: () => <div className="text-right">APY</div>,
+    cell: ({ row }) => (
+      <div className="text-right text-green-500 font-medium">
+        {Number(row.getValue('apy')).toFixed(2)}%
+      </div>
+    ),
+  },
+];
+
+const SupplyDialog: React.FC<SupplyDialogProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  selectedAssets,
+}) => {
+
+  // Filter out assets with non-zero amounts
+  const assetsToSupply = React.useMemo(
+    () => selectedAssets.filter((asset) => asset.select_native > 0),
+    [selectedAssets]
+  );
+
+  // Calculate totals
+  const totalSupply = React.useMemo(
+    () => assetsToSupply.reduce((sum, asset) => sum + asset.select_native, 0),
+    [assetsToSupply]
+  );
+
   const table = useReactTable({
-    data: previewData,
+    data: assetsToSupply,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -83,13 +103,15 @@ const SupplyDialog: React.FC<SupplyDialogProps> = ({ isOpen, onClose, onConfirm 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-sm text-gray-500">Total Supply</div>
-              <div className="text-xl font-semibold">$0.0</div>
+              <div className="text-xl font-semibold">
+                ${totalSupply.toFixed(2)}
+              </div>
             </div>
             <div className="flex flex-col items-end">
               <div className="text-sm text-gray-500">Total Health Factor</div>
               <div className="flex items-center gap-2">
                 <div className="text-red-500 font-semibold">1.0</div>
-                <ArrowRight className="w-6 h-6" />
+                <ArrowRight className="w-4 h-4" />
                 <div className="text-green-500 font-semibold">2.0</div>
               </div>
             </div>
@@ -106,9 +128,9 @@ const SupplyDialog: React.FC<SupplyDialogProps> = ({ isOpen, onClose, onConfirm 
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -128,7 +150,7 @@ const SupplyDialog: React.FC<SupplyDialogProps> = ({ isOpen, onClose, onConfirm 
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No assets
+                    No assets selected
                   </TableCell>
                 </TableRow>
               )}
@@ -140,6 +162,7 @@ const SupplyDialog: React.FC<SupplyDialogProps> = ({ isOpen, onClose, onConfirm 
           <Button
             onClick={onConfirm}
             className="w-full bg-black text-white hover:bg-gray-800"
+            disabled={assetsToSupply.length === 0}
           >
             Confirm Supply
           </Button>
