@@ -9,7 +9,7 @@ import { columns } from "@/components/asset-table/columns";
 import SupplyDialog from "@/components/supply-dialog";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
-import { getAssetAddrRecord, Asset, AssetName, getAssetApy } from "@/types/asset";
+import { getAssetAddrRecord, Asset, AssetName, getAssetApy, getWalletBalance } from "@/types/asset";
 import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 import { useToast } from "@/components/ui/use-toast";
@@ -24,7 +24,7 @@ export default function App() {
     Object.entries(getAssetAddrRecord()).map(([label, address]) => ({
       address,
       label: label as AssetName,
-      wallet_balance: 0,
+      wallet_balance: getWalletBalance(label as AssetName),
       select_native: 0,
       apy: 0,
     }))
@@ -73,7 +73,7 @@ export default function App() {
             return {
               address: suppliedAsset.address,
               label: label as AssetName,
-              wallet_balance: 0,
+              wallet_balance: getWalletBalance(label as AssetName),
               select_native: suppliedAsset.supplied_amount,
               apy: getAssetApy(label as AssetName),
             };
@@ -112,7 +112,10 @@ export default function App() {
     console.log("Supply confirmed!");
     console.log("Assets to supply:", assetsToSupply);
     
-    // call the backend to supply the assets
+    // Reset supply row selection
+    setSupplyRowSelection({});
+    
+    // Close the dialog
     setIsPreviewDialogOpen(false);
   };
 

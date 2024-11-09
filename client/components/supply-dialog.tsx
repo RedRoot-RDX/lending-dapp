@@ -17,6 +17,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table';
+import { getAssetIcon, AssetName } from '@/types/asset';
 
 interface Asset {
   label: string;
@@ -39,7 +40,7 @@ const columns: ColumnDef<Asset>[] = [
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
         <img
-          src={`/api/placeholder/24/24`}
+          src={getAssetIcon(row.getValue('label') as AssetName)}
           alt={`${row.getValue('label')} icon`}
           className="w-6 h-6 rounded-full"
         />
