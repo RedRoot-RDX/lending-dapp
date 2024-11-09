@@ -1,22 +1,17 @@
 "use client";
 
-import { AssetName } from "@/lib/utils";
+import React from "react";
+import { AssetName, getAssetColors } from "@/types/asset";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { Asset } from "@/types/asset";
 
-export type Asset = {
-  address: string;
-  label: AssetName;
-  wallet_balance: number;
-  select_native: number;
-  select_usd: number;
-  apy: string;
-};
-
-export const columns: ColumnDef<Asset>[] = [
+export const columns: ColumnDef<Asset, unknown>[] = [
   {
     id: "select",
-    header: "Select assets", // Changed from checkbox to text header
+    header: "Select assets",
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
@@ -30,21 +25,58 @@ export const columns: ColumnDef<Asset>[] = [
   {
     accessorKey: "label",
     header: "Assets",
+    cell: ({ row }) => {
+      const colors = getAssetColors(row.getValue("label") as AssetName);
+      return (
+        <div className="flex items-center gap-2">
+          <div className={`w-6 h-6 rounded-full border-2 ${colors.border} bg-transparent`} />
+          <span>{row.getValue("label")}</span>
+        </div>
+      );
+    },
   },
   {
     accessorKey: "wallet_balance",
     header: "Wallet Balance",
+    cell: ({ row }) => {
+      const isExpanded = row.getIsExpanded();
+      return isExpanded ? null : row.getValue("wallet_balance");
+    },
   },
   {
     accessorKey: "select_native",
-    header: "Selected (Native)",
-  },
-  {
-    accessorKey: "select_usd",
-    header: "Selected (USD)",
+    header: "Selected Amount",
+    cell: ({ row }) => {
+      const isExpanded = row.getIsExpanded();
+      if (isExpanded) return null;
+      return (
+        <div>
+          {row.original.select_native > 0 ? row.original.select_native : "-"}
+        </div>
+      );
+    },
   },
   {
     accessorKey: "apy",
     header: "APY",
+    cell: ({ row }) => {
+      const apy = row.getValue("apy");
+      return `${apy}%`;
+    }
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => {
+      const isExpanded = row.getIsExpanded();
+      return (
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => row.toggleExpanded()}
+        >
+          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+      );
+    },
   },
 ];

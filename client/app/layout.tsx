@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ContextProvider } from "@/contexts/provider";
+import { Toaster } from "@/components/ui/toaster";
 
 /* ----------------- Constants ---------------- */
 const geistSans = localFont({
@@ -41,6 +42,7 @@ export default function RootLayout({
           {/* Footer hidden off-screen */}
           <Footer />
         </ContextProvider>
+        <Toaster />
       </body>
     </html>
   );
