@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AssetName, getAssetColors } from "@/types/asset";
+import { AssetName, getAssetIcon, getWalletBalance } from "@/types/asset";
 
 interface Asset {
   label: AssetName;
@@ -32,7 +32,7 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
     const amount = parseFloat(value);
     if (isNaN(amount)) {
       setError("Please enter a valid number");
-    } else if (amount > asset.wallet_balance) {
+    } else if (amount > getWalletBalance(asset.label)) {
       setError("Amount exceeds wallet balance");
     } else {
       setError(null);
@@ -41,7 +41,7 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
   };
 
   const handleMaxClick = () => {
-    setTempAmount(asset.wallet_balance.toString());
+    setTempAmount(getWalletBalance(asset.label).toString());
     setError(null);
   };
 
@@ -57,8 +57,12 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
     <div className="p-6">
       {/* Asset Header */}
       <div className="flex items-center gap-4 mb-8">
-        <div className={`w-10 h-10 rounded-full ${getAssetColors(asset.label)} flex items-center justify-center`}>
-          <span className="text-white text-base font-medium">{asset.label[0]}</span>
+        <div className="w-10 h-10 relative">
+          <img
+            src={getAssetIcon(asset.label)}
+            alt={`${asset.label} icon`}
+            className="w-10 h-10 rounded-full"
+          />
         </div>
         <span className="text-2xl font-semibold">{asset.label}</span>
       </div>
@@ -92,7 +96,7 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: Co
             {/* Value and available balance */}
             <div className="flex justify-between text-sm text-muted-foreground px-1">
               <span>${tempAmount ? Number(tempAmount).toFixed(1) : "0.0"}</span>
-              <span>Available {asset.wallet_balance}</span>
+              <span>Available {getWalletBalance(asset.label)}</span>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { RowSelectionState } from "@tanstack/react-table";
+import { RowSelectionState, Updater } from "@tanstack/react-table";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,11 +9,10 @@ import { columns } from "@/components/asset-table/columns";
 import SupplyDialog from "@/components/supply-dialog";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
-import { assetAddrRecord } from "@/lib/utils";
+import { getAssetAddrRecord, Asset, AssetName } from "@/types/asset";
 import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 import { useToast } from "@/components/ui/use-toast";
-import type { Asset } from "@/types/asset";
 
 export default function App() {
   const { accounts } = useRadixContext();
@@ -21,29 +20,15 @@ export default function App() {
   const [borrowRowSelection, setBorrowRowSelection] = React.useState<RowSelectionState>({});
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const { toast } = useToast();
-  const [supplyData, setSupplyData] = useState<Asset[]>([
-    {
-      address: assetAddrRecord["XRD"],
-      label: "XRD",
-      wallet_balance: 100.5,
-      select_native: 0.00,
-      apy: 10.3,
-    },
-    {
-      address: assetAddrRecord["USDT"],
-      label: "USDT",
-      wallet_balance: 87,
-      select_native: 0.00,
-      apy: 5.5,
-    },
-    {
-      address: assetAddrRecord["HUG"],
-      label: "HUG",
-      wallet_balance: 12,
-      select_native: 0.00,
-      apy: 23.1,
-    },
-  ]);
+  const [supplyData, setSupplyData] = useState<Asset[]>(
+    Object.entries(getAssetAddrRecord()).map(([label, address]) => ({
+      address,
+      label: label as AssetName,
+      wallet_balance: 0,
+      select_native: 0,
+      apy: 0,
+    }))
+  );
 
   const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
   const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
@@ -63,8 +48,16 @@ export default function App() {
   };
 
   const handleSupplyConfirm = () => {
-    // Handle supply confirmation logic here
-    console.log("Supply confirmed for assets:", getSelectedAssets());
+    const selectedAssets = getSelectedAssets();
+    const assetsToSupply = selectedAssets.map(asset => ({
+      address: asset.address,
+      amount: asset.select_native
+    }));
+    
+    console.log("Supply confirmed!");
+    console.log("Assets to supply:", assetsToSupply);
+    
+    // call the backend to supply the assets
     setIsPreviewDialogOpen(false);
   };
 
@@ -106,6 +99,10 @@ export default function App() {
           : row
       )
     );
+  };
+
+  const handleSupplyRowSelectionChange = (updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+    setSupplyRowSelection(updaterOrValue);
   };
 
   return (
@@ -174,7 +171,7 @@ export default function App() {
                 columns={columns}
                 data={supplyData}
                 rowSelection={supplyRowSelection}
-                onRowSelectionChange={setSupplyRowSelection}
+                onRowSelectionChange={handleSupplyRowSelectionChange}
                 onAmountChange={handleAmountChange}
               />
             </CardContent>
@@ -230,6 +227,7 @@ export default function App() {
         isOpen={isPreviewDialogOpen}
         onClose={() => setIsPreviewDialogOpen(false)}
         onConfirm={handleSupplyConfirm}
+        selectedAssets={getSelectedAssets()}
       />
     </main>
   );
