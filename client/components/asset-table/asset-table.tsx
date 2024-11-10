@@ -28,12 +28,13 @@ import {
 import { AssetCollapsibleContent } from "./collapsible-content";
 import { Asset } from "@/types/asset";
 
-interface DataTableProps<TData extends Asset, TValue> {
+interface AssetTableProps<TData extends Asset, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   rowSelection: RowSelectionState;
-  onRowSelectionChange: (updaterOrValue: Updater<RowSelectionState>) => void;
+  onRowSelectionChange: (value: RowSelectionState) => void;
   onAmountChange: (address: string, amount: number) => void;
+  type: 'borrow' | 'supply';
 }
 
 export function AssetTable<TData extends Asset, TValue>({
@@ -42,7 +43,8 @@ export function AssetTable<TData extends Asset, TValue>({
   rowSelection,
   onRowSelectionChange,
   onAmountChange,
-}: DataTableProps<TData, TValue>) {
+  type,
+}: AssetTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState(data);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expandedRows, setExpandedRows] = React.useState<Record<string, boolean>>({});
@@ -58,8 +60,8 @@ export function AssetTable<TData extends Asset, TValue>({
     onAmountChange(address, amount);
   };
 
-  const handleConfirm = () => {
-    setExpandedRows({}); // Collapse all rows
+  const handleConfirm = (asset: Asset, amount: number) => {
+    setExpandedRows({});
   };
 
   // Handle row selection changes
@@ -213,7 +215,7 @@ export function AssetTable<TData extends Asset, TValue>({
                           <AssetCollapsibleContent 
                             asset={row.original} 
                             onAmountChange={(amount) => handleAmountChange(row.original.address, amount)}
-                            onConfirm={handleConfirm}
+                            onConfirm={(amount) => handleConfirm(row.original, amount)}
                           />
                         </div>
                       </TableCell>

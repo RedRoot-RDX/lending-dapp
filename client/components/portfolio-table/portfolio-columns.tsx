@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import { useState } from "react";
 import { WithdrawDialog } from "./withdraw-dialog";
 import { useToast } from "../ui/use-toast";
+import { RepayDialog } from "./repay-dialog";
 
 export const portfolioColumns: ColumnDef<Asset>[] = [
   {
@@ -22,7 +23,7 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
   },
   {
     accessorKey: "select_native",
-    header: "Supplied",
+    header: "Debt",
   },
   {
     accessorKey: "apy",
@@ -49,6 +50,20 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
         setIsDialogOpen(false);
       };
 
+      const handleRepay = (amount: number) => {
+        console.log(`Repay action triggered for:`, {
+          asset: row.original.label,
+          amount: amount,
+        });
+        
+        toast({
+          title: "Repayment Initiated",
+          description: `Repaying ${amount} ${row.original.label}`,
+        });
+        
+        setIsDialogOpen(false);
+      };
+
       return (
         <>
           <div className="text-right">
@@ -60,12 +75,21 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
             </Button>
           </div>
 
-          <WithdrawDialog
-            isOpen={isDialogOpen}
-            onClose={() => setIsDialogOpen(false)}
-            onConfirm={handleWithdraw}
-            asset={row.original}
-          />
+          {row.original.type === 'supply' ? (
+            <WithdrawDialog
+              isOpen={isDialogOpen}
+              onClose={() => setIsDialogOpen(false)}
+              onConfirm={handleWithdraw}
+              asset={row.original}
+            />
+          ) : (
+            <RepayDialog
+              isOpen={isDialogOpen}
+              onClose={() => setIsDialogOpen(false)}
+              onConfirm={handleRepay}
+              asset={row.original}
+            />
+          )}
         </>
       );
     },

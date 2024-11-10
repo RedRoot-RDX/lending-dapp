@@ -14,6 +14,8 @@ import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 import { useToast } from "@/components/ui/use-toast";
 import { ShootingStars } from "@/components/ui/shooting-stars";
+import { borrowColumns } from "@/components/asset-table/borrow-columns";
+import BorrowDialog from "@/components/borrow-dialog";
 
 export default function App() {
   const { accounts } = useRadixContext();
@@ -30,9 +32,19 @@ export default function App() {
       apy: 0,
     }))
   );
-  const [portfolioData, setPortfolioData] = useState<Asset[]>([]);
+  const [portfolioData, setSupplyPortfolioData] = useState<Asset[]>([]);
   const [totalSupply, setTotalSupply] = useState<number>(0);
   const [totalSupplyApy, setTotalSupplyApy] = useState<number>(0);
+  const [showSupplyPreview, setShowSupplyPreview] = useState(false);
+  const [showBorrowPreview, setShowBorrowPreview] = useState(false);
+  const [isBorrowDialogOpen, setIsBorrowDialogOpen] = useState(false);
+  const [borrowPortfolioData, setBorrowPortfolioData] = useState<Asset[]>([]);
+  const [totalBorrowDebt, setTotalBorrowDebt] = useState<number>(0);
+  const [totalBorrowApy, setTotalBorrowApy] = useState<number>(0);
+  const [borrowPowerUsed, setBorrowPowerUsed] = useState<number>(0);
+  const [netWorth, setNetWorth] = useState<number>(0);
+  const [netApy, setNetApy] = useState<number>(0);
+  const [health, setHealth] = useState<number>(0);
 
   const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
   const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
@@ -55,13 +67,13 @@ export default function App() {
             supplied_amount: 500.25,
           },
           {
-            address: "resource_usdc",
+            address: "resource_floop",
             supplied_amount: 1000.00,
           }
         ];
 
         // Convert to portfolio data by looking up asset info from configs
-        const portfolioData: Asset[] = dummySuppliedAssets
+        const supplyPortfolioData: Asset[] = dummySuppliedAssets
           .map(suppliedAsset => {
             // Find asset config by address
             const assetConfig = Object.entries(getAssetAddrRecord()).find(
@@ -81,7 +93,41 @@ export default function App() {
           })
           .filter((asset): asset is Asset => asset !== null);
 
-        setPortfolioData(portfolioData);
+        setSupplyPortfolioData(supplyPortfolioData);
+
+        // New dummy borrow data
+        const dummyBorrowedAssets = [
+          {
+            address: "resource_astrl",
+            borrowed_amount: 99.12,
+          },
+          {
+            address: "resource_xusdc",
+            borrowed_amount: 130.01,
+          }
+        ];
+
+        // Convert to portfolio data
+        const borrowPortfolioData: Asset[] = dummyBorrowedAssets
+          .map(borrowedAsset => {
+            const assetConfig = Object.entries(getAssetAddrRecord()).find(
+              ([_, address]) => address === borrowedAsset.address
+            );
+
+            if (!assetConfig) return null;
+            const [label] = assetConfig;
+
+            return {
+              address: borrowedAsset.address,
+              label: label as AssetName,
+              wallet_balance: getWalletBalance(label as AssetName),
+              select_native: borrowedAsset.borrowed_amount,
+              apy: getAssetApy(label as AssetName)
+            };
+          })
+          .filter((asset): asset is Asset => asset !== null);
+
+        setBorrowPortfolioData(borrowPortfolioData);
       } catch (error) {
         console.error("Error fetching portfolio data:", error);
         toast({
@@ -101,9 +147,17 @@ export default function App() {
           totalSupply: 1234.56,
           totalApy: 10.3
         };
-
         setTotalSupply(dummyStats.totalSupply);
         setTotalSupplyApy(dummyStats.totalApy);
+
+        const dummyBorrowStats = {
+          totalDebt: 700.50,
+          totalApy: 5.3,
+          borrowPowerUsed: 51.4
+        };
+        setTotalBorrowDebt(dummyBorrowStats.totalDebt);
+        setTotalBorrowApy(dummyBorrowStats.totalApy);
+        setBorrowPowerUsed(dummyBorrowStats.borrowPowerUsed);
       } catch (error) {
         console.error("Error fetching portfolio stats:", error);
         toast({
@@ -115,15 +169,43 @@ export default function App() {
     };
 
     fetchPortfolioStats();
+
+    const fetchOverallStats = async () => {
+      try {
+        // TODO: Fetch actual stats from backend
+        const dummyOverallStats = {
+          netWorth: 2500.75,
+          netApy: 8.5,
+          health: 85.2
+        };
+
+        setNetWorth(dummyOverallStats.netWorth);
+        setNetApy(dummyOverallStats.netApy);
+        setHealth(dummyOverallStats.health);
+      } catch (error) {
+        console.error("Error fetching overall stats:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch overall statistics",
+        });
+      }
+    };
+
+    fetchOverallStats();
   }, [accounts]);
 
 
-  const getSelectedAssets = () => {
+  const getSelectedSupplyAssets = () => {
     return Object.keys(supplyRowSelection).map(index => supplyData[Number(index)]);
   };
 
+  const getSelectedBorrowAssets = () => {
+    return Object.keys(borrowRowSelection).map(index => supplyData[Number(index)]);
+  };
+
   const handleSupplyConfirm = () => {
-    const selectedAssets = getSelectedAssets();
+    const selectedAssets = getSelectedSupplyAssets();
     const assetsToSupply = selectedAssets.map(asset => ({
       address: asset.address,
       amount: asset.select_native
@@ -134,23 +216,43 @@ export default function App() {
 
     // Reset supply row selection
     setSupplyRowSelection({});
-
-    // Close the dialog
     setIsPreviewDialogOpen(false);
   };
 
-  const validateSelectedAssets = () => {
+  const handleBorrowConfirm = () => {
+    const selectedAssets = getSelectedBorrowAssets();
+    const assetsToBorrow = selectedAssets.map(asset => ({
+      address: asset.address,
+      amount: asset.select_native
+    }));
+
+    console.log("Borrow confirmed!");
+    console.log("Assets to borrow:", assetsToBorrow);
+
+    setBorrowRowSelection({});
+    setIsBorrowDialogOpen(false);
+  };
+
+  const validateSelectedSupplyAssets = () => {
     const selectedAssets = Object.keys(supplyRowSelection).filter(
       (key) => supplyRowSelection[key]
     );
 
-    console.log("Selected assets:", selectedAssets);
-    console.log("Supply data:", supplyData);
-
-    // Check if any selected assets have amount <= 0
     const hasInvalidAmount = selectedAssets.some((key) => {
       const asset = supplyData[parseInt(key)];
-      console.log(`Checking asset ${key}:`, asset);
+      return !asset || asset.select_native <= 0;
+    });
+
+    return !hasInvalidAmount;
+  };
+
+  const validateSelectedBorrowAssets = () => {
+    const selectedAssets = Object.keys(borrowRowSelection).filter(
+      (key) => borrowRowSelection[key]
+    );
+
+    const hasInvalidAmount = selectedAssets.some((key) => {
+      const asset = supplyData[parseInt(key)];
       return !asset || asset.select_native <= 0;
     });
 
@@ -158,7 +260,7 @@ export default function App() {
   };
 
   const handlePreviewSupply = () => {
-    if (!validateSelectedAssets()) {
+    if (!validateSelectedSupplyAssets()) {
       toast({
         variant: "destructive",
         title: "Invalid Selection",
@@ -169,7 +271,7 @@ export default function App() {
     setIsPreviewDialogOpen(true);
   };
 
-  const handleAmountChange = (address: string, amount: number) => {
+  const handleAmountChange = (address: string, amount: number, type: 'supply' | 'borrow') => {
     setSupplyData(current =>
       current.map(row =>
         row.address === address
@@ -177,10 +279,31 @@ export default function App() {
           : row
       )
     );
+    
+    // Show preview button when amount is set
+    if (amount > 0) {
+      if (type === 'supply') {
+        setShowSupplyPreview(true);
+      } else {
+        setShowBorrowPreview(true);
+      }
+    }
   };
 
   const handleSupplyRowSelectionChange = (updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
     setSupplyRowSelection(updaterOrValue);
+  };
+
+  const handlePreviewBorrow = () => {
+    if (!validateSelectedBorrowAssets()) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Selection",
+        description: "Please ensure all selected assets have an amount greater than 0",
+      });
+      return;
+    }
+    setIsBorrowDialogOpen(true);
   };
 
   return (
@@ -195,15 +318,15 @@ export default function App() {
             <CardContent className="flex flex-row gap-8 [&>*]:flex [&>*]:flex-col [&>*>h1]:font-semibold">
               <div>
                 <h1>Net Worth</h1>
-                <p>-</p>
+                <p>${netWorth.toFixed(2)}</p>
               </div>
               <div>
                 <h1>Net APY</h1>
-                <p>-</p>
+                <p>{netApy.toFixed(1)}%</p>
               </div>
               <div>
                 <h1>Health</h1>
-                <p>-</p>
+                <p>{health.toFixed(1)}%</p>
               </div>
             </CardContent>
           </Card>
@@ -240,7 +363,7 @@ export default function App() {
               <CardHeader>
                 <div className="grid grid-cols-2 gap-4">
                   <CardTitle>Available Collateral</CardTitle>
-                  {hasSelectedSupplyAssets && (
+                  {showSupplyPreview && hasSelectedSupplyAssets && (
                     <Button onClick={handlePreviewSupply}>Preview Supply</Button>
                   )}
                 </div>
@@ -251,7 +374,8 @@ export default function App() {
                   data={supplyData}
                   rowSelection={supplyRowSelection}
                   onRowSelectionChange={handleSupplyRowSelectionChange}
-                  onAmountChange={handleAmountChange}
+                  onAmountChange={(address, amount) => handleAmountChange(address, amount, 'supply')}
+                  type="supply"
                 />
               </CardContent>
             </Card>
@@ -267,11 +391,11 @@ export default function App() {
                   <div className="flex justify-end">
                     <div className="grid grid-cols-[auto,1fr] gap-x-6 items-center">
                       <CardDescription className="text-left">Total Debt:</CardDescription>
-                      <CardDescription className="text-right">$0.0</CardDescription>
+                      <CardDescription className="text-right">${totalBorrowDebt.toFixed(2)}</CardDescription>
                       <CardDescription className="text-left">Total APY:</CardDescription>
-                      <CardDescription className="text-right">10.3%</CardDescription>
+                      <CardDescription className="text-right">{totalBorrowApy.toFixed(1)}%</CardDescription>
                       <CardDescription className="text-left">Borrow Power Used:</CardDescription>
-                      <CardDescription className="text-right">51.4%</CardDescription>
+                      <CardDescription className="text-right">{borrowPowerUsed.toFixed(1)}%</CardDescription>
                     </div>
                   </div>
                 </div>
@@ -279,7 +403,7 @@ export default function App() {
               <CardContent>
                 <PortfolioTable
                   columns={portfolioColumns}
-                  data={supplyData.map(asset => ({ ...asset, type: 'borrow' as const }))}
+                  data={borrowPortfolioData}
                 />
               </CardContent>
             </Card>
@@ -287,15 +411,25 @@ export default function App() {
             {/* Available Borrows Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Available Borrows</CardTitle>
+                <div className="grid grid-cols-2 gap-4">
+                  <CardTitle>Available Borrows</CardTitle>
+                  {showBorrowPreview && hasSelectedBorrowAssets && (
+                    <Button onClick={handlePreviewBorrow}>Preview Borrow</Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <AssetTable
-                  columns={columns}
-                  data={supplyData}
+                  columns={borrowColumns}
+                  data={supplyData.map(asset => ({
+                    ...asset,
+                    available: asset.wallet_balance * 0.8,
+                    type: 'borrow'
+                  }))}
                   rowSelection={borrowRowSelection}
                   onRowSelectionChange={setBorrowRowSelection}
-                  onAmountChange={handleAmountChange}
+                  onAmountChange={(address, amount) => handleAmountChange(address, amount, 'borrow')}
+                  type="borrow"
                 />
               </CardContent>
             </Card>
@@ -306,7 +440,13 @@ export default function App() {
           isOpen={isPreviewDialogOpen}
           onClose={() => setIsPreviewDialogOpen(false)}
           onConfirm={handleSupplyConfirm}
-          selectedAssets={getSelectedAssets()}
+          selectedAssets={getSelectedSupplyAssets()}
+        />
+        <BorrowDialog
+          isOpen={isBorrowDialogOpen}
+          onClose={() => setIsBorrowDialogOpen(false)}
+          onConfirm={handleBorrowConfirm}
+          selectedAssets={getSelectedBorrowAssets()}
         />
       </main>
       <ShootingStars className="pointer-events-none" />

@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Asset, getAssetIcon, getWalletBalance } from "@/types/asset";
+import { Asset, getAssetIcon } from "@/types/asset";
 
-interface WithdrawDialogProps {
+interface RepayDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (amount: number) => void;
   asset: Asset;
 }
 
-export function WithdrawDialog({ isOpen, onClose, onConfirm, asset }: WithdrawDialogProps) {
+export function RepayDialog({ isOpen, onClose, onConfirm, asset }: RepayDialogProps) {
   const [tempAmount, setTempAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [newHealthFactor, setNewHealthFactor] = useState<number>(2.0); // This should come from your backend calculation
+  const [newHealthFactor, setNewHealthFactor] = useState<number>(1.5); // This should come from your backend calculation
 
   useEffect(() => {
     setTempAmount("");
@@ -27,12 +27,11 @@ export function WithdrawDialog({ isOpen, onClose, onConfirm, asset }: WithdrawDi
     if (isNaN(amount)) {
       setError("Please enter a valid number");
     } else if (amount > asset.select_native) {
-      setError("Amount exceeds supplied balance");
+      setError("Amount exceeds borrowed balance");
     } else {
       setError(null);
       // Here you would typically make an API call to calculate the new health factor
-      // For now, we'll simulate it
-      setNewHealthFactor(2.0 - (amount / asset.select_native) * 0.5);
+      setNewHealthFactor(1.5 + (amount / asset.select_native) * 0.5);
     }
   };
 
@@ -52,7 +51,7 @@ export function WithdrawDialog({ isOpen, onClose, onConfirm, asset }: WithdrawDi
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Withdraw</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">Repay</DialogTitle>
         </DialogHeader>
         
         {/* Asset Header */}
@@ -71,7 +70,6 @@ export function WithdrawDialog({ isOpen, onClose, onConfirm, asset }: WithdrawDi
           <div className="space-y-3">
             <span className="text-lg font-semibold block mb-2">Amount</span>
             <div className="space-y-2">
-              {/* Input container */}
               <div className="relative">
                 <Input
                   type="number"
@@ -92,10 +90,9 @@ export function WithdrawDialog({ isOpen, onClose, onConfirm, asset }: WithdrawDi
                 </div>
               </div>
               
-              {/* Value and available balance */}
               <div className="flex justify-between text-sm text-muted-foreground px-1">
                 <span>${tempAmount ? Number(tempAmount).toFixed(2) : "0.00"}</span>
-                <span>Current supply {asset.select_native}</span>
+                <span>Current debt {asset.select_native}</span>
               </div>
 
               {error && <div className="text-red-500 text-sm">{error}</div>}
@@ -116,7 +113,7 @@ export function WithdrawDialog({ isOpen, onClose, onConfirm, asset }: WithdrawDi
             onClick={handleConfirm}
             disabled={!!error || !tempAmount || parseFloat(tempAmount) <= 0}
           >
-            Confirm Withdrawal
+            Confirm Repayment
           </Button>
         </div>
       </DialogContent>
