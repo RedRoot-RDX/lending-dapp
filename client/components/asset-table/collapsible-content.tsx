@@ -52,7 +52,7 @@ export function AssetCollapsibleContent({ asset, onAmountChange, onConfirm }: As
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full">
       <div className="flex flex-col space-y-2">
         <div className="relative">
           <Input

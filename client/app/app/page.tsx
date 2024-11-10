@@ -309,7 +309,7 @@ export default function App() {
   return (
     <div>
       <main className="container py-4 flex-grow">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-8">
           {/* Statistics Header */}
           <Card className="col-span-2">
             <CardHeader>
@@ -332,7 +332,7 @@ export default function App() {
           </Card>
 
           {/* Collateral Column */}
-          <div className="space-y-8">
+          <div className="space-y-4">
             {/* Your Collateral Card */}
             <Card>
               <CardHeader>
@@ -382,7 +382,7 @@ export default function App() {
           </div>
 
           {/* Borrow Column */}
-          <div className="space-y-8">
+          <div className="space-y-4">
             {/* Your Borrows Card */}
             <Card>
               <CardHeader>

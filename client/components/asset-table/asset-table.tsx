@@ -210,8 +210,8 @@ export function AssetTable<TData extends Asset, TValue>({
                   </TableRow>
                   <CollapsibleContent asChild>
                     <TableRow>
-                      <TableCell colSpan={columns.length}>
-                        <div className="p-4 bg-gray-100 rounded-lg">
+                      <TableCell className="p-0" colSpan={columns.length}>
+                        <div className="bg-gray-100 p-4">
                           <AssetCollapsibleContent 
                             asset={row.original} 
                             onAmountChange={(amount) => handleAmountChange(row.original.address, amount)}
