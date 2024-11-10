@@ -2,7 +2,23 @@
 use scrypto::prelude::*;
 use scrypto_avltree::{AvlTree, NodeIterator, NodeIteratorMut};
 
-/* ------------- Custom Structures ------------ */
+/* ------------------- Pool ------------------- */
+pub type TPool = Global<OneResourcePool>;
+
+#[derive(ScryptoSbor)]
+pub struct Pool {
+    pub pool: TPool,
+    pub pool_address: ComponentAddress,
+    pub pool_unit: GlobalAddress,
+}
+
+impl Pool {
+    pub fn new(pool: TPool, pool_address: ComponentAddress, pool_unit: GlobalAddress) -> Self {
+        Pool { pool, pool_address, pool_unit }
+    }
+}
+
+/* ------------------ LazyVec ----------------- */
 /// State explosion-safe vector; builds on Ociswap's AvlTree library
 #[derive(ScryptoSbor)]
 pub struct LazyVec<T: ScryptoSbor + Clone + Debug + PartialEq> {
@@ -111,5 +127,27 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
 
     pub fn iter_mut(&mut self) -> NodeIteratorMut<Decimal, T> {
         self.inner.range_mut(dec!(0)..self.get_length())
+    }
+
+    /// Generate new AvlTree with the same elements and length
+    /// ! Potentially unsafe; avoid using
+    pub fn clone(&self) -> LazyVec<T> {
+        let mut cloned_inner: AvlTree<Decimal, T> = AvlTree::new();
+        for (i, el, _) in self.iter() {
+            cloned_inner.insert(i, el);
+        }
+
+        LazyVec { inner: cloned_inner, length: self.length }
+    }
+
+    /// Generate a new Vec with the same elements
+    /// ! Potentially unsafe; avoid using
+    pub fn to_vec(&self) -> Vec<T> {
+        let mut vec: Vec<T> = Vec::new();
+        for (_, el, _) in self.iter() {
+            vec.push(el);
+        }
+
+        vec
     }
 }

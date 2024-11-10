@@ -55,7 +55,7 @@ fn setup() -> (
         .call_function(
             package_address,
             "Redroot", "instantiate",
-            manifest_args!()
+            manifest_args!(main_account.addr.clone())
         )
         .deposit_batch(main_account.addr)
         .build();
@@ -275,7 +275,6 @@ fn asset_remove_noperm_test() -> Result<(), RuntimeError> {
     #[rustfmt::skip]
         let manifest = ManifestBuilder::new()
             .lock_fee_from_faucet()
-            .create_proof_from_account_of_amount(user_account.addr, owner_badge, dec!(1))
             .call_method(
                 component,
                 "remove_asset",
