@@ -6,7 +6,7 @@ pub type TPool = Global<OneResourcePool>;
 
 #[derive(ScryptoSbor)]
 pub struct Pool {
-    pub pool: TPool,
+    pub pool: Global<OneResourcePool>,
     pub pool_address: ComponentAddress,
     pub pool_unit: ResourceAddress,
     pub pool_unit_global: GlobalAddress,

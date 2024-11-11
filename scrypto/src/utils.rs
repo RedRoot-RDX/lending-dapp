@@ -2,6 +2,9 @@
 use scrypto::prelude::*;
 use scrypto_avltree::{AvlTree, NodeIterator, NodeIteratorMut};
 
+/* ------------------- Types ------------------ */
+pub type ValueMap = KeyValueStore<ResourceAddress, Decimal>;
+
 /* ------------------ LazyVec ----------------- */
 /// State explosion-safe vector; builds on Ociswap's AvlTree library
 #[derive(ScryptoSbor)]
@@ -114,7 +117,6 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
     }
 
     /// Generate new AvlTree with the same elements and length
-    /// ! Potentially unsafe; avoid using
     pub fn clone(&self) -> LazyVec<T> {
         let mut cloned_inner: AvlTree<Decimal, T> = AvlTree::new();
         for (i, el, _) in self.iter() {
@@ -125,7 +127,6 @@ impl<T: ScryptoSbor + Clone + Debug + PartialEq> LazyVec<T> {
     }
 
     /// Generate a new Vec with the same elements
-    /// ! Potentially unsafe; avoid using
     pub fn to_vec(&self) -> Vec<T> {
         let mut vec: Vec<T> = Vec::new();
         for (_, el, _) in self.iter() {

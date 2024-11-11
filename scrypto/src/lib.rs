@@ -1,13 +1,15 @@
 /* ------------------ Imports ----------------- */
 // Modules
-mod assets;
+mod asset;
 mod pool;
+mod position;
 mod utils;
 // Usages
-use assets::{FungibleAsset, ASSET_ADDRESSES};
+use asset::{Asset, ADDRESSES};
 use pool::Pool;
+use position::Position;
 use scrypto::prelude::*;
-use utils::LazyVec;
+use utils::{LazyVec, ValueMap};
 
 /* ------------------ Events ------------------ */
 #[derive(ScryptoSbor, ScryptoEvent)]
@@ -54,18 +56,25 @@ mod redroot {
             track_asset   => restrict_to: [SELF, OWNER, admin];
             untrack_asset => restrict_to: [SELF, OWNER, admin];
             // Pool management
+
+            // Temporary methods
+            log_asset_list => PUBLIC;
+            log_assets     => PUBLIC;
+            log_pools      => PUBLIC;
         }
     }
 
     struct Redroot {
-        // Authorization
-        global_component_caller_badge: NonFungibleGlobalId,
-        owner_badge: ResourceAddress,
-        admin_resource_manager: ResourceManager,
-        // Asset Storage
+        component_address: ComponentAddress,
+
+        owner_badge_address: ResourceAddress,
+        admin_manager: ResourceManager,
+
         asset_list: LazyVec<ResourceAddress>,
-        assets: KeyValueStore<ResourceAddress, FungibleAsset>,
+        assets: KeyValueStore<ResourceAddress, Asset>,
         pools: KeyValueStore<ResourceAddress, Pool>,
+
+        position_manager: ResourceManager,
     }
 
     impl Redroot {
@@ -73,12 +82,11 @@ mod redroot {
             // Reserve address
             let (address_reservation, component_address) = Runtime::allocate_component_address(Redroot::blueprint_id());
 
-            //. Authorization
+            //. Badges and Rules
             // Component
-            let global_component_caller_badge = NonFungibleGlobalId::global_caller_badge(component_address);
-            let global_component_access_rule: AccessRule = rule!(require(global_component_caller_badge.clone()));
+            let component_access_rule: AccessRule = rule!(require(global_caller(component_address)));
 
-            // Component Owner
+            // Component owner
             let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata(metadata! {init {
@@ -88,44 +96,60 @@ mod redroot {
                 .mint_initial_supply(1)
                 .into();
             let owner_access_rule: AccessRule = rule!(require(owner_badge.resource_address()));
+            let owner_role: OwnerRole = OwnerRole::Fixed(owner_access_rule.clone());
 
-            // Admin Badge
-            let admin_resource_manager: ResourceManager = ResourceBuilder::new_fungible(OwnerRole::None)
+            // Admin badge
+            let admin_manager: ResourceManager = ResourceBuilder::new_fungible(owner_role.clone())
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata(metadata! {init {
                     "name"        => "", locked;
                     "description" => "", locked;
                 }})
                 .mint_roles(mint_roles! {
-                    minter         => global_component_access_rule.clone();
+                    minter         => component_access_rule.clone();
                     minter_updater => rule!(deny_all);
                 })
                 .recall_roles(recall_roles! {
-                    recaller         => global_component_access_rule.clone();
+                    recaller         => component_access_rule.clone();
                     recaller_updater => rule!(deny_all);
                 })
                 .burn_roles(burn_roles! {
-                    burner         => global_component_access_rule.clone();
+                    burner         => component_access_rule.clone();
                     burner_updater => rule!(deny_all);
                 })
                 .create_with_no_initial_supply();
-            let admin_access_rule: AccessRule = rule!(require(admin_resource_manager.address()));
+            let admin_access_rule: AccessRule = rule!(require(admin_manager.address()));
+
+            // Position badge
+            let position_manager: ResourceManager = ResourceBuilder::new_ruid_non_fungible::<Position>(owner_role.clone())
+                .metadata(metadata! {init {
+                    "name"        => "Redroot Position Badge", locked;
+                    "description" => "Badge representing a position in the Redroot lending platform", locked;
+                }})
+                .mint_roles(mint_roles! {
+                    minter         => component_access_rule.clone();
+                    minter_updater => rule!(deny_all);
+                })
+                .burn_roles(burn_roles! {
+                    burner         => component_access_rule.clone();
+                    burner_updater => rule!(deny_all);
+                })
+                .create_with_no_initial_supply();
 
             //. Internal Data Setup
             // Initialise component data
             let mut component_data: Redroot = Self {
-                // Authorization
-                global_component_caller_badge,
-                owner_badge: owner_badge.resource_address(),
-                admin_resource_manager,
-                // Asset Storage
+                component_address,
+                owner_badge_address: owner_badge.resource_address(),
+                admin_manager,
                 asset_list: LazyVec::new(),
                 assets: KeyValueStore::new(),
                 pools: KeyValueStore::new(),
+                position_manager,
             };
 
             // Add all assets
-            let mut assets: Vec<ResourceAddress> = ASSET_ADDRESSES.clone().to_vec();
+            let mut assets: Vec<ResourceAddress> = ADDRESSES.clone().to_vec();
             let owner_proof = owner_badge.create_proof_of_all();
 
             // ! ---------- TESTNET ----------
@@ -142,8 +166,8 @@ mod redroot {
             assets.push(rrt.resource_address());
             // ! -/-/-/-/-/ TESTNET -/-/-/-/-/
 
-            for addr in assets {
-                Redroot::add_asset(&mut component_data, addr, owner_proof.clone());
+            for address in assets {
+                Redroot::add_asset(&mut component_data, address, owner_proof.clone());
             }
 
             // ! ---------- TESTNET ----------
@@ -180,7 +204,7 @@ mod redroot {
             // Instantisation
             let component: Global<Redroot> = component_data
                 .instantiate()
-                .prepare_to_globalize(OwnerRole::Fixed(owner_access_rule.clone()))
+                .prepare_to_globalize(owner_role)
                 .roles(component_roles)
                 .metadata(component_metadata)
                 .with_address(address_reservation)
@@ -220,7 +244,7 @@ mod redroot {
 
         //. ------------- Asset Management ------------- /
         /// Add a fungible asset into the market, and output a FungibleAsset struct
-        pub fn add_asset(&mut self, address: ResourceAddress, owner_proof: Proof) -> FungibleAsset {
+        pub fn add_asset(&mut self, address: ResourceAddress, owner_proof: Proof) -> Asset {
             info!("[add_asset] Adding asset: {:?}", address);
 
             // Validation
@@ -229,12 +253,13 @@ mod redroot {
             assert!(!self.validate_fungible(address), "Cannot add asset {:?}, as it is already added and tracked", address);
 
             // Create FungibleAsset
-            let asset = FungibleAsset::new(address);
+            let asset = Asset::new(address);
             info!("[add_asset] FungibleAsset: {:#?}", asset);
 
-            info!("[add_asset] Creating pool for asset: {:?}", asset);
-            let pool_manager_role = rule!(require(self.global_component_caller_badge.clone()) || require(self.owner_badge));
-            let pool = Redroot::create_pool(owner_proof, pool_manager_role, asset.address, asset.symbol.clone());
+            // Pool owned by: Redroot owner
+            // Pool managed by: Redroot owner or component calls
+            let pool_manager = rule!(require(global_caller(self.component_address)) || require(self.owner_badge_address));
+            let pool = Redroot::create_pool(owner_proof, pool_manager, asset.address, asset.symbol.clone());
 
             // Fire AddAssetEvent
             Runtime::emit_event(AddAssetEvent {
@@ -249,7 +274,7 @@ mod redroot {
             asset
         }
 
-        /// Add asset into the asset list
+        /// Add an asset into the asset list
         pub fn track_asset(&mut self, asset: ResourceAddress) {
             info!("[track_asset] Tracking asset {:?}", asset);
 
@@ -262,7 +287,7 @@ mod redroot {
             self.asset_list.append(asset);
         }
 
-        /// Removes a (fungible) asset from the asset list, but does not remove its vault
+        /// Removes an asset from the asset list
         pub fn untrack_asset(&mut self, asset: ResourceAddress) {
             info!("[untrack_asset] Removing asset: {:?}", asset);
 
@@ -283,64 +308,95 @@ mod redroot {
         }
 
         //. -------------- Pool Management ------------- /
-        // TODO
+        // TODO; potentially extract all pool management functions to the pools module
+
+        // ! ------------ Temporary Methods ------------ /
+        pub fn log_asset_list(&self) {
+            info!("[log_asset_list] Asset list: {:#?}", self.asset_list.to_vec());
+        }
+
+        pub fn log_assets(&self) {
+            for (i, address, _) in self.asset_list.iter() {
+                if let Some(asset) = self.assets.get(&address) {
+                    info!("[log_assets] Data for asset {:?}:", address);
+                    info!("[log_assets] {:#?}", asset.clone());
+                } else {
+                    info!("[log_assets] Asset with address {:?} not found", address);
+                }
+            }
+        }
+
+        pub fn log_pools(&self) {
+            for (i, address, _) in self.asset_list.iter() {
+                if let Some(pool) = self.pools.get(&address) {
+                    info!("[log_pools] Data for pool {:?}:", address);
+                    info!("[log_pools] Vault contains: {}", pool.pool.get_vault_amount());
+                } else {
+                    info!("[log_pools] Pool with address {:?} not found", address);
+                }
+            }
+        }
 
         //. -------------- Private Methods ------------- /
         /// Checks that the given asset is generally valid, is in the asset_list, and has a corresponding vault
-        fn validate_fungible(&self, addr: ResourceAddress) -> bool {
-            info!("[validate_fungible] Validating asset with address {:?}", addr);
-
-            if !addr.is_fungible() {
-                info!("[validate_fungible] INVALID: Asset {:?} is not fungible", addr);
+        fn validate_fungible(&self, address: ResourceAddress) -> bool {
+            if !address.is_fungible() {
+                info!("[validate_fungible] INVALID: Asset {:?} is not fungible", address);
                 return false;
             }
 
             // Check that a vault exists for the given address
-            if self.pools.get(&addr).is_none() {
-                info!("[validate_fungible] INVALID: No pool found for asset {:?}", addr);
+            if self.pools.get(&address).is_none() {
+                info!("[validate_fungible] INVALID: No pool found for asset {:?}", address);
                 return false;
             }
 
             // Check that the asset is tracked in the asset_list
-            let found = self.asset_list.find(&addr);
+            let found = self.asset_list.find(&address);
             if found.is_none() {
-                info!("[validate_fungible] INVALID: Asset {:?} not tracked in the asset list", addr);
+                info!("[validate_fungible] INVALID: Asset {:?} not tracked in the asset list", address);
                 return false;
             }
 
             // Return true if all checks passed
-            info!("[validate_fungible] VALID: Asset {:?} successfully validated", addr);
+            info!("[validate_fungible] VALID: Asset {:?} successfully validated", address);
             true
         }
 
-        /// Calculates the total USD value of the given assets
-        fn calculate_usd_kv(&self, assets: KeyValueStore<ResourceAddress, Decimal>) -> (Decimal, KeyValueStore<ResourceAddress, Decimal>) {
+        /// Calculates the USD values of all provided asset from the oracle
+        // ! Currently uses a mock oracle
+        // TODO: provide epoch to ensure data not out-of-date
+        fn get_asset_values(&self, assets: ValueMap) -> (Decimal, ValueMap) {
             let mut usd_values = KeyValueStore::new();
             let mut total = dec!(0.0);
 
             (total, usd_values)
         }
 
-        /// Calculates the total USD value of the given assets
-        fn calculate_usd(&self, assets: Vec<Bucket>) -> (Decimal, KeyValueStore<ResourceAddress, Decimal>) {
-            let mut usd_values = KeyValueStore::new();
-            let mut total = dec!(0.0);
+        /// Generate a value map from a vector of buckets
+        fn buckets_to_value_map(buckets: Vec<Bucket>) -> (ValueMap, Vec<Bucket>) {
+            let mut kv: ValueMap = KeyValueStore::new();
 
-            (total, usd_values)
+            for bucket in &buckets {
+                kv.insert(bucket.resource_address(), bucket.amount());
+            }
+
+            (kv, buckets)
         }
 
         /// Create a pool for a given asset; automatically sets metadata
-        fn create_pool(owner_proof: Proof, pool_manager_role: AccessRule, asset: ResourceAddress, asset_symbol: String) -> Pool {
+        // ! Assumes that the owner_proof is valid, and is the actual desired OwnerRole for the component
+        fn create_pool(owner_proof: Proof, pool_manager: AccessRule, asset: ResourceAddress, asset_symbol: String) -> Pool {
             info!("[create_pool] Creating pool for asset: {:?}", asset);
             info!("[create_pool] Asset symbol: {:?}", asset_symbol);
 
-            let owner_role = OwnerRole::Fixed(rule!(require(owner_proof.resource_address())));
+            let pool_owner = OwnerRole::Fixed(rule!(require(owner_proof.resource_address())));
 
             //. Sanity checks
             assert!(asset.is_fungible(), "Asset with address {:?} is not fungible", asset);
 
             //. Create the pool
-            let pool = Blueprint::<OneResourcePool>::instantiate(owner_role, pool_manager_role, asset, None);
+            let pool = Blueprint::<OneResourcePool>::instantiate(pool_owner, pool_manager, asset, None);
             let pool_metadata_pu: Option<GlobalAddress> = pool.get_metadata("pool_unit").expect("Unable to get pool unit address");
 
             // let pool_name: Option<String> = pool.get_metadata("name").unwrap_or(Some(String::from("Unable to Fetch Name")));

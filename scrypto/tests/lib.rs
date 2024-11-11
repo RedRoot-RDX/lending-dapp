@@ -88,35 +88,43 @@ fn setup() -> (
 #[test]
 fn instantisation_test() -> Result<(), RuntimeError> {
     // Deconstruct setup
-    let (mut ledger, _, component, (_, _), _) = setup();
+    let (mut ledger, _, component, (main_account, _), owner_badge) = setup();
 
-    let resources = ledger.get_component_resources(component);
+    // Log asset list
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+        .call_method(component, "log_asset_list", manifest_args!())
+        .deposit_batch(main_account.addr)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
-    // Log all stored resources and vaults
-    for (&addr, &amount) in &resources {
-        println!(
-            "Asset Name: {:?}",
-            ledger.get_metadata(GlobalAddress::from_metadata_value(addr.to_metadata_entry().unwrap()).unwrap(), "name").unwrap()
-        );
-        println!(
-            "- Description: {:?}",
-            ledger
-                .get_metadata(GlobalAddress::from_metadata_value(addr.to_metadata_entry().unwrap()).unwrap(), "description")
-                .unwrap()
-        );
-        println!("- Amount: {:?}", amount);
+    log_tx("log_asset_list", &receipt);
+    receipt.expect_commit_success();
 
-        println!("Asset Vaults:");
-        let vaults = ledger.get_component_vaults(component, addr);
-        for vault in vaults {
-            println!("- Vault NodeID: {:?}", vault);
-            println!("- Vault Balance: {:?}", ledger.inspect_vault_balance(vault).unwrap());
-        }
-        println!("");
-    }
+    // Log assets
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+        .call_method(component, "log_assets", manifest_args!())
+        .deposit_batch(main_account.addr)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
-    // Assert only 2 resources created
-    // assert_eq!(&resources.len(), &2, "More than 2 resources found; expected RRT, XRD");
+    log_tx("log_assets", &receipt);
+    receipt.expect_commit_success();
+
+    // Log pools
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+        .call_method(component, "log_pools", manifest_args!())
+        .deposit_batch(main_account.addr)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+
+    log_tx("log_pools", &receipt);
+    receipt.expect_commit_success();
 
     Ok(())
 }
