@@ -2,6 +2,7 @@ SHELL=/bin/sh
 
 # $(t) is an optional, single test to execute
 test:
+	-mkdir ./tests/output
 	-cargo test $(t) -- --show-output > ./tests/output/full-output.txt
 	@$(MAKE) test-out-short
 	@cat ./tests/output/output.txt

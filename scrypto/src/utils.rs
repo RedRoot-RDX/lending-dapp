@@ -2,22 +2,6 @@
 use scrypto::prelude::*;
 use scrypto_avltree::{AvlTree, NodeIterator, NodeIteratorMut};
 
-/* ------------------- Pool ------------------- */
-pub type TPool = Global<OneResourcePool>;
-
-#[derive(ScryptoSbor)]
-pub struct Pool {
-    pub pool: TPool,
-    pub pool_address: ComponentAddress,
-    pub pool_unit: GlobalAddress,
-}
-
-impl Pool {
-    pub fn new(pool: TPool, pool_address: ComponentAddress, pool_unit: GlobalAddress) -> Self {
-        Pool { pool, pool_address, pool_unit }
-    }
-}
-
 /* ------------------ LazyVec ----------------- */
 /// State explosion-safe vector; builds on Ociswap's AvlTree library
 #[derive(ScryptoSbor)]
