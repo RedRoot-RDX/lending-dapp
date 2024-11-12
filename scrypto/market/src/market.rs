@@ -149,34 +149,13 @@ mod redroot {
             };
 
             // Add all assets
-            let mut assets: Vec<ResourceAddress> = ADDRESSES.clone().to_vec();
+            let assets: Vec<ResourceAddress> = ADDRESSES.clone().to_vec();
             let owner_proof = owner_badge.create_proof_of_all();
 
-            // ! ---------- TESTING ----------
-            // Create test 'Redroot' asset
-            let rrt: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
-                .divisibility(DIVISIBILITY_MAXIMUM)
-                .metadata(metadata! {init {
-                    "name"        => "Redroot", locked;
-                    "symbol"      => "RRT", locked;
-                    "description" => "Redroot token", locked;
-                }})
-                .mint_initial_supply(10000)
-                .into();
-            assets.push(rrt.resource_address());
-            // ! -/-/-/-/-/ TESTING -/-/-/-/-/
-
             for address in assets {
-                Redroot::add_asset(&mut component_data, address, owner_proof.clone());
+                let asset = Redroot::add_asset(&mut component_data, address);
+                // , owner_proof.clone()
             }
-
-            // ! ---------- TESTING ----------
-            // Deposit all RRT into its pool
-            owner_proof.authorize(|| {
-                component_data.pools.get_mut(&rrt.resource_address()).unwrap().component.protected_deposit(rrt);
-            });
-            // ! -/-/-/-/-/ TESTING -/-/-/-/-/
-            owner_proof.drop();
 
             //. Component
             let asset_list: Vec<ResourceAddress> = component_data.asset_list.to_vec();
@@ -229,14 +208,6 @@ mod redroot {
             // TODO: call position_supply
         }
 
-        // 0. Validate that all supplied resources are valid
-        // 1. Check if user has an NFT
-        // YES: continue -> #2
-        // NO: create and issue new NFT
-        // 2. Fetch NFT data
-        // 3. Append supply
-        // 4. Calculate position health
-        // 5. Update NFT
         pub fn position_supply(&mut self, supply: Vec<Bucket>) {
             // Sanity checks
             let (valid, supply) = self.validate_buckets_not_empty(supply);
@@ -263,8 +234,10 @@ mod redroot {
 
         //. --------------- Asset Listing -------------- /
         /// Add a fungible asset into the market, and output a FungibleAsset struct
-        pub fn add_asset(&mut self, address: ResourceAddress, owner_proof: Proof) -> Asset {
+        pub fn add_asset(&mut self, address: ResourceAddress) -> Asset {
             info!("[add_asset] Adding asset: {:?}", address);
+
+            // assert_eq!(self.owner_badge_address, owner_badge.resource_address(), "Owner badge must be provided");
 
             // Validation
             assert!(address.is_fungible(), "Provided asset must be fungible.");
@@ -277,13 +250,32 @@ mod redroot {
 
             // Pool owned by: Redroot owner
             // Pool managed by: Redroot owner or component calls
+            let pool_owner = OwnerRole::Fixed(rule!(require(self.owner_badge_address)));
             let pool_manager = rule!(require(global_caller(self.component_address)) || require(self.owner_badge_address));
-            let pool = Pool::create(owner_proof, pool_manager, asset.address, asset.symbol.clone());
+            let pool = Pool::create(pool_owner, pool_manager, asset.address);
+
+            // ! Cannot automatically set proof metadata because of "Moving restricted proof downstream"
+            // Set pool unit metadata
+            // let pool_unit_rm: ResourceManager = ResourceManager::from_address(pool.pool_unit.clone());
+
+            // let meta_name = format!("Redroot {} Pool Unit", asset.name).to_string();
+            // let meta_symbol = format!("$rrt{}", asset.symbol).to_string();
+            // let meta_description = format!("Redroot pool unit for the {} pool", asset.symbol).to_string();
+
+            // info!("Pre-auth");
+            // LocalAuthZone::push(owner_badge.clone());
+
+            // owner_badge.authorize(|| {
+            //     pool_unit_rm.set_metadata("name", meta_name);
+            //     pool_unit_rm.set_metadata("symbol", meta_symbol);
+            //     pool_unit_rm.set_metadata("description", meta_description);
+            // });
+            // info!("Post-auth");
 
             // Fire AddAssetEvent
             Runtime::emit_event(AddAssetEvent {
                 asset: asset.address,
-                pool_address: pool.pool_address,
+                pool_address: pool.address,
                 pool_unit_address: pool.pool_unit_global,
             });
 

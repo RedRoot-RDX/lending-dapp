@@ -1,14 +1,16 @@
 /* ------------------ Imports ----------------- */
+use crate::pool::Pool;
 use scrypto::prelude::*;
 
 /* --------------- Asset Struct --------------- */
 // TODO: Implement non-fixed APY and utilization
 // TODO: Create functions to disable asset operations
-#[derive(Debug, Clone, ScryptoSbor)]
+#[derive(Clone, ScryptoSbor, Debug)]
 pub struct Asset {
     pub address: ResourceAddress,
     pub resource_manager: ResourceManager,
 
+    // pub pool: Pool,
     pub name: String,
     pub symbol: String,
     // pub description: String,
@@ -32,6 +34,7 @@ impl Asset {
             address,
             resource_manager,
 
+            // pool,
             name,
             symbol,
             // description
