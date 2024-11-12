@@ -13,6 +13,3 @@ test-out-sanitise:
 
 test-out-info:
 	@sed -n '/stdout/p;/Application Logs/,/Outcome/{/Application Logs/d;/Outcome/d;p}' ./tests/output/verbose.log > ./tests/output/logs.log
-
-test-out-clean:
-	@rm -rf ./tests/output/*

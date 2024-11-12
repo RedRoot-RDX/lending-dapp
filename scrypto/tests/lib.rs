@@ -10,7 +10,7 @@ const LOG_TX: bool = false;
 struct Account {
     public_key: Secp256k1PublicKey,
     private_key: Secp256k1PrivateKey,
-    addr: ComponentAddress,
+    address: ComponentAddress,
 }
 
 impl Account {
@@ -26,6 +26,7 @@ fn log_tx(func: &str, tx: &TransactionReceiptV1) {
     }
 }
 
+/* ------------- Helper Manifests ------------- */
 /// Initialise default state for unit tests
 fn setup() -> (
     LedgerSimulator<NoExtension, InMemorySubstateDatabase>, // Ledger simulation
@@ -40,24 +41,19 @@ fn setup() -> (
     //. Account Setup
     // Main Account
     let (public_key, private_key, account) = ledger.new_allocated_account();
-    let main_account = Account { public_key, private_key, addr: account };
+    let main_account = Account { public_key, private_key, address: account };
     // User 1
     let (public_key, private_key, account) = ledger.new_allocated_account();
-    let user_account = Account { public_key, private_key, addr: account };
+    let user_account = Account { public_key, private_key, address: account };
 
     //. Package Setup
     let package_address = ledger.compile_and_publish(this_package!()); // Publish package
 
     // Instantiate component (Redroot)
-    #[rustfmt::skip]
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
-        .call_function(
-            package_address,
-            "Redroot", "instantiate",
-            manifest_args!(main_account.addr.clone())
-        )
-        .deposit_batch(main_account.addr)
+        .call_function(package_address, "Redroot", "instantiate", manifest_args!(main_account.address.clone()))
+        .deposit_batch(main_account.address)
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
@@ -67,20 +63,44 @@ fn setup() -> (
     let component = receipt.expect_commit(true).new_component_addresses()[0];
     let owner_badge = receipt.expect_commit(true).new_resource_addresses()[0];
 
-    // println!("Owner Badge: {:?}", owner_badge);
-
-    // for addr in receipt.expect_commit(true).new_resource_addresses() {
-    //     println!("New Resource Address: {:?}", addr);
-    //     println!(
-    //         "Resource Name: {:?}",
-    //         ledger.get_metadata(GlobalAddress::from_metadata_value(addr.to_metadata_entry().unwrap()).unwrap(), "name").unwrap()
-    //     );
-    // }
-
-    // println!("{:?}", ledger.get_component_balance(main_account.addr, owner_badge));
-
     //. Return
     (ledger, package_address, component, (main_account, user_account), owner_badge)
+}
+
+fn log_asset_list(ledger: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>, component: ComponentAddress, owner_account: &Account) {
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .call_method(component, "log_asset_list", manifest_args!())
+        .deposit_batch(owner_account.address)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![owner_account.nf_global_id()]);
+
+    log_tx("log_asset_list", &receipt);
+    receipt.expect_commit_success();
+}
+
+fn log_assets(ledger: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>, component: ComponentAddress, owner_account: &Account) {
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .call_method(component, "log_assets", manifest_args!())
+        .deposit_batch(owner_account.address)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![owner_account.nf_global_id()]);
+
+    log_tx("log_assets", &receipt);
+    receipt.expect_commit_success();
+}
+
+fn log_pools(ledger: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>, component: ComponentAddress, owner_account: &Account) {
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .call_method(component, "log_pools", manifest_args!())
+        .deposit_batch(owner_account.address)
+        .build();
+    let receipt = ledger.execute_manifest(manifest, vec![owner_account.nf_global_id()]);
+
+    log_tx("log_pools", &receipt);
+    receipt.expect_commit_success();
 }
 
 /* ------------------- Tests ------------------ */
@@ -88,43 +108,46 @@ fn setup() -> (
 #[test]
 fn instantisation_test() -> Result<(), RuntimeError> {
     // Deconstruct setup
-    let (mut ledger, _, component, (main_account, _), owner_badge) = setup();
+    let (mut ledger, _, component, (main_account, user_account), owner_badge) = setup();
 
-    // Log asset list
+    log_asset_list(&mut ledger, component, &main_account);
+    log_assets(&mut ledger, component, &main_account);
+    log_pools(&mut ledger, component, &main_account);
+
+    // Test position_supply
+    #[rustfmt::skip]
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
-        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
-        .call_method(component, "log_asset_list", manifest_args!())
-        .deposit_batch(main_account.addr)
+        // .create_proof_from_account_of_amount(main_account.address, owner_badge, dec!(1))
+        .withdraw_from_account(main_account.address, XRD, dec!(100))
+        .take_from_worktop(XRD, dec!(100), "bucket_XRD")
+        .call_method_with_name_lookup(component, "position_supply", |lookup| {
+            (vec![lookup.bucket("bucket_XRD")],)
+        })
+        .deposit_batch(main_account.address)
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
-    log_tx("log_asset_list", &receipt);
+    log_tx("position_supply", &receipt);
     receipt.expect_commit_success();
 
-    // Log assets
-    let manifest = ManifestBuilder::new()
-        .lock_fee_from_faucet()
-        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
-        .call_method(component, "log_assets", manifest_args!())
-        .deposit_batch(main_account.addr)
-        .build();
-    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
+    // #[rustfmt::skip]
+    // let manifest = ManifestBuilder::new()
+    //     .lock_fee_from_faucet()
+    //     // .create_proof_from_account_of_amount(main_account.address, owner_badge, dec!(1))
+    //     .get_free_xrd_from_faucet()
+    //     .take_from_worktop(XRD, dec!(100), "bucket_XRD")
+    //     .call_method_with_name_lookup(component, "position_supply", |lookup| {
+    //         (vec![lookup.bucket("bucket_XRD")],)
+    //     })
+    //     .deposit_batch(user_account.address)
+    //     .build();
+    // let receipt = ledger.execute_manifest(manifest, vec![user_account.nf_global_id()]);
 
-    log_tx("log_assets", &receipt);
-    receipt.expect_commit_success();
+    // log_tx("position_supply", &receipt);
+    // receipt.expect_commit_success();
 
-    // Log pools
-    let manifest = ManifestBuilder::new()
-        .lock_fee_from_faucet()
-        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
-        .call_method(component, "log_pools", manifest_args!())
-        .deposit_batch(main_account.addr)
-        .build();
-    let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
-
-    log_tx("log_pools", &receipt);
-    receipt.expect_commit_success();
+    // println!("[instantisation_test] main address: {:?}", user_account.address);
 
     Ok(())
 }
@@ -136,20 +159,20 @@ fn asset_add_test() -> Result<(), RuntimeError> {
     let (mut ledger, _, component, (main_account, _), owner_badge) = setup();
 
     // Create dummy asset
-    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.address);
     println!("Created Assets:\n- Dummy Asset: {:?}\n", dummy_asset);
 
     // Valid addition
     #[rustfmt::skip]
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
-        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+        .create_proof_from_account_of_amount(main_account.address, owner_badge, dec!(1))
         .call_method(
             component,
             "add_asset",
             manifest_args!(dummy_asset)
         )
-        .deposit_batch(main_account.addr)
+        .deposit_batch(main_account.address)
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
@@ -172,7 +195,7 @@ fn asset_add_noperm_test() -> Result<(), RuntimeError> {
     let (mut ledger, _, component, (main_account, user_account), _) = setup();
 
     // Create dummy asset
-    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.address);
     println!("Created Assets:\n- Dummy Asset: {:?}\n", dummy_asset);
 
     // Invalid addition; invalid permission for 'user_account'
@@ -184,7 +207,7 @@ fn asset_add_noperm_test() -> Result<(), RuntimeError> {
                 "add_asset",
                 manifest_args!(dummy_asset)
             )
-            .deposit_batch(user_account.addr)
+            .deposit_batch(user_account.address)
             .build();
     let receipt = ledger.execute_manifest(manifest, vec![user_account.nf_global_id()]);
 
@@ -201,7 +224,7 @@ fn asset_remove_test() -> Result<(), RuntimeError> {
     let (mut ledger, _, component, (main_account, _), owner_badge) = setup();
 
     // Create dummy asset
-    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.address);
     println!("Created Assets:\n- Dummy Asset: {:?}\n", dummy_asset);
 
     //. Add asset
@@ -209,13 +232,13 @@ fn asset_remove_test() -> Result<(), RuntimeError> {
     #[rustfmt::skip]
         let manifest = ManifestBuilder::new()
             .lock_fee_from_faucet()
-            .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+            .create_proof_from_account_of_amount(main_account.address, owner_badge, dec!(1))
             .call_method(
                 component,
                 "add_asset",
                 manifest_args!(dummy_asset)
             )
-            .deposit_batch(main_account.addr)
+            .deposit_batch(main_account.address)
             .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
@@ -227,13 +250,13 @@ fn asset_remove_test() -> Result<(), RuntimeError> {
     #[rustfmt::skip]
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
-        .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+        .create_proof_from_account_of_amount(main_account.address, owner_badge, dec!(1))
         .call_method(
             component,
             "remove_asset",
             manifest_args!(dummy_asset)
         )
-        .deposit_batch(main_account.addr)
+        .deposit_batch(main_account.address)
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
@@ -257,19 +280,19 @@ fn asset_remove_noperm_test() -> Result<(), RuntimeError> {
     let (mut ledger, _, component, (main_account, user_account), owner_badge) = setup();
 
     // Create dummy asset
-    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.address);
 
     // Add asset
     #[rustfmt::skip]
         let manifest = ManifestBuilder::new()
             .lock_fee_from_faucet()
-            .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+            .create_proof_from_account_of_amount(main_account.address, owner_badge, dec!(1))
             .call_method(
                 component,
                 "add_asset",
                 manifest_args!(dummy_asset)
             )
-            .deposit_batch(main_account.addr)
+            .deposit_batch(main_account.address)
             .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 
@@ -288,7 +311,7 @@ fn asset_remove_noperm_test() -> Result<(), RuntimeError> {
                 "remove_asset",
                 manifest_args!(dummy_asset)
             )
-            .deposit_batch(user_account.addr)
+            .deposit_batch(user_account.address)
             .build();
     let receipt = ledger.execute_manifest(manifest, vec![user_account.nf_global_id()]);
 
@@ -305,19 +328,19 @@ fn asset_remove_invalid_test() -> () {
     let (mut ledger, _, component, (main_account, _), owner_badge) = setup();
 
     // Create dummy asset
-    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.addr);
+    let dummy_asset = ledger.create_fungible_resource(dec!(10000), DIVISIBILITY_MAXIMUM, main_account.address);
 
     // Invalid removal; 'invalid_asset' not added
     #[rustfmt::skip]
         let manifest = ManifestBuilder::new()
             .lock_fee_from_faucet()
-            .create_proof_from_account_of_amount(main_account.addr, owner_badge, dec!(1))
+            .create_proof_from_account_of_amount(main_account.address, owner_badge, dec!(1))
             .call_method(
                 component,
                 "remove_asset",
                 manifest_args!(dummy_asset)
             )
-            .deposit_batch(main_account.addr)
+            .deposit_batch(main_account.address)
             .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
 

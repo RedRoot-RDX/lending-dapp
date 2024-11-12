@@ -47,6 +47,7 @@ mod redroot {
         },
         methods {
             // Position management
+            open_position     => PUBLIC;
             position_supply   => PUBLIC;
             position_borrow   => PUBLIC;
             position_withdraw => PUBLIC;
@@ -70,11 +71,12 @@ mod redroot {
         owner_badge_address: ResourceAddress,
         admin_manager: ResourceManager,
 
-        asset_list: LazyVec<ResourceAddress>,
+        asset_list: LazyVec<ResourceAddress>, // List of all 'tracked' assets; serves as a filter out of all added assets
         assets: KeyValueStore<ResourceAddress, Asset>,
         pools: KeyValueStore<ResourceAddress, Pool>,
 
         position_manager: ResourceManager,
+        open_positions: u64,
     }
 
     impl Redroot {
@@ -121,7 +123,7 @@ mod redroot {
             let admin_access_rule: AccessRule = rule!(require(admin_manager.address()));
 
             // Position badge
-            let position_manager: ResourceManager = ResourceBuilder::new_ruid_non_fungible::<Position>(owner_role.clone())
+            let position_manager: ResourceManager = ResourceBuilder::new_integer_non_fungible::<Position>(owner_role.clone())
                 .metadata(metadata! {init {
                     "name"        => "Redroot Position Badge", locked;
                     "description" => "Badge representing a position in the Redroot lending platform", locked;
@@ -146,6 +148,7 @@ mod redroot {
                 assets: KeyValueStore::new(),
                 pools: KeyValueStore::new(),
                 position_manager,
+                open_positions: 0u64,
             };
 
             // Add all assets
@@ -218,6 +221,18 @@ mod redroot {
         }
 
         //. ------------ Position Management ----------- /
+        pub fn open_position(&mut self, supply: Vec<Bucket>) {
+            // Sanity checks
+            let (valid, supply) = self.validate_buckets_not_empty(supply);
+            assert!(valid, "Some supplied resource is invalid, check logs");
+
+            let (valuemap, supply): (ValueMap, Vec<Bucket>) = self.buckets_to_value_map(supply);
+
+            let position: Position = Position::create(valuemap);
+
+            // TODO: call position_supply
+        }
+
         // 0. Validate that all supplied resources are valid
         // 1. Check if user has an NFT
         // YES: continue -> #2
@@ -227,7 +242,13 @@ mod redroot {
         // 4. Calculate position health
         // 5. Update NFT
         pub fn position_supply(&mut self, supply: Vec<Bucket>) {
-            todo!()
+            // Sanity checks
+            let (valid, supply) = self.validate_buckets_not_empty(supply);
+            assert!(valid, "Some supplied resource is invalid, check logs");
+
+            // Check if user has an NFT
+            info!("[position_supply] Global Caller: {:?}", GLOBAL_CALLER_VIRTUAL_BADGE);
+            info!("[position_supply] Component: {:?}", self.component_address);
         }
 
         pub fn position_borrow(&mut self, borrow: Vec<Bucket>) {
@@ -259,7 +280,7 @@ mod redroot {
             // Pool owned by: Redroot owner
             // Pool managed by: Redroot owner or component calls
             let pool_manager = rule!(require(global_caller(self.component_address)) || require(self.owner_badge_address));
-            let pool = Redroot::create_pool(owner_proof, pool_manager, asset.address, asset.symbol.clone());
+            let pool = Pool::create(owner_proof, pool_manager, asset.address, asset.symbol.clone());
 
             // Fire AddAssetEvent
             Runtime::emit_event(AddAssetEvent {
@@ -269,6 +290,7 @@ mod redroot {
             });
 
             self.pools.insert(asset.address, pool);
+            self.assets.insert(asset.address, asset.clone());
             self.track_asset(asset.address);
 
             asset
@@ -363,6 +385,36 @@ mod redroot {
             true
         }
 
+        /// Checks that all resources provided in the buckets are valid
+        fn validate_buckets(&self, buckets: Vec<Bucket>) -> (bool, Vec<Bucket>) {
+            for bucket in &buckets {
+                if !self.validate_fungible(bucket.resource_address()) {
+                    return (false, buckets);
+                }
+
+                if bucket.amount() <= dec!(0.0) {
+                    return (false, buckets);
+                }
+            }
+
+            (true, buckets)
+        }
+
+        /// Checks that all presources provided in the buckets are valid and not empty
+        fn validate_buckets_not_empty(&self, buckets: Vec<Bucket>) -> (bool, Vec<Bucket>) {
+            for bucket in &buckets {
+                if bucket.amount() <= dec!(0.0) {
+                    return (false, buckets);
+                }
+
+                if !self.validate_fungible(bucket.resource_address()) {
+                    return (false, buckets);
+                }
+            }
+
+            (true, buckets)
+        }
+
         /// Calculates the USD values of all provided asset from the oracle
         // ! Currently uses a mock oracle
         // TODO: provide epoch to ensure data not out-of-date
@@ -374,7 +426,7 @@ mod redroot {
         }
 
         /// Generate a value map from a vector of buckets
-        fn buckets_to_value_map(buckets: Vec<Bucket>) -> (ValueMap, Vec<Bucket>) {
+        fn buckets_to_value_map(&self, buckets: Vec<Bucket>) -> (ValueMap, Vec<Bucket>) {
             let mut kv: ValueMap = KeyValueStore::new();
 
             for bucket in &buckets {
@@ -382,43 +434,6 @@ mod redroot {
             }
 
             (kv, buckets)
-        }
-
-        /// Create a pool for a given asset; automatically sets metadata
-        // ! Assumes that the owner_proof is valid, and is the actual desired OwnerRole for the component
-        fn create_pool(owner_proof: Proof, pool_manager: AccessRule, asset: ResourceAddress, asset_symbol: String) -> Pool {
-            info!("[create_pool] Creating pool for asset: {:?}", asset);
-            info!("[create_pool] Asset symbol: {:?}", asset_symbol);
-
-            let pool_owner = OwnerRole::Fixed(rule!(require(owner_proof.resource_address())));
-
-            //. Sanity checks
-            assert!(asset.is_fungible(), "Asset with address {:?} is not fungible", asset);
-
-            //. Create the pool
-            let pool = Blueprint::<OneResourcePool>::instantiate(pool_owner, pool_manager, asset, None);
-            let pool_metadata_pu: Option<GlobalAddress> = pool.get_metadata("pool_unit").expect("Unable to get pool unit address");
-
-            // let pool_name: Option<String> = pool.get_metadata("name").unwrap_or(Some(String::from("Unable to Fetch Name")));
-            // let pool_description: Option<String> = pool.get_metadata("description").unwrap_or(Some(String::from("Unable to Fetch Description")));
-
-            // info!("[create_pool] Pool name: {:?}", pool_name);
-            // info!("[create_pool] Pool description: {:?}", pool_description);
-
-            let pool_unit_global: GlobalAddress = pool_metadata_pu.expect("Unable to get pool unit GlobalAddress");
-            let pool_unit_addr: ResourceAddress = ResourceAddress::try_from(pool_unit_global).expect("Unable to get pool unit ResourceAddress");
-            let pool_unit_rm: ResourceManager = ResourceManager::from_address(pool_unit_addr.clone());
-
-            //. Output
-            let meta_symbol = format!("rrt{asset_symbol}").to_string();
-            let meta_description = format!("Redroot pool unit for the {asset_symbol} pool").to_string();
-
-            owner_proof.authorize(|| {
-                pool_unit_rm.set_metadata("name", meta_symbol);
-                pool_unit_rm.set_metadata("description", meta_description);
-            });
-
-            Pool::new(pool, pool.address(), pool_unit_addr, pool_unit_global)
         }
     }
 }

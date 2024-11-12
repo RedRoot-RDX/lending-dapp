@@ -5,14 +5,12 @@ use scrypto::prelude::*;
 // TODO: Implement non-fixed APY and utilization
 #[derive(Debug, Clone, ScryptoSbor)]
 pub struct Asset {
-    // Scrypto info
     pub address: ResourceAddress,
     pub resource_manager: ResourceManager,
-    // Metadata
+
     pub name: String,
     pub symbol: String,
     // pub description: String,
-    // Finance
     pub apy: Decimal, // 0.1 == 10%
     pub utilization: Decimal,
 }
