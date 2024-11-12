@@ -1,15 +1,10 @@
 /* ------------------ Imports ----------------- */
-// Modules
-mod asset;
-mod pool;
-mod position;
-mod utils;
 // Usages
-use asset::{Asset, ADDRESSES};
-use pool::Pool;
-use position::Position;
+use crate::asset::{Asset, ADDRESSES};
+use crate::pool::{Pool, TPool};
+use crate::position::Position;
+use crate::utils::{LazyVec, ValueMap};
 use scrypto::prelude::*;
-use utils::{LazyVec, ValueMap};
 
 /* ------------------ Events ------------------ */
 #[derive(ScryptoSbor, ScryptoEvent)]
@@ -40,6 +35,7 @@ struct UntrackAssetEvent {
 /* ----------------- Blueprint ---------------- */
 #[blueprint]
 #[events(InstantiseEvent, AddAssetEvent, TrackAssetEvent, UntrackAssetEvent)]
+#[types(Decimal, ResourceAddress, Asset, TPool, Pool, Position)] // Types registered to reduce fees; include those used for KV stores, NFTs, etc.
 mod redroot {
     enable_method_auth! {
         roles {
@@ -84,7 +80,7 @@ mod redroot {
             // Reserve address
             let (address_reservation, component_address) = Runtime::allocate_component_address(Redroot::blueprint_id());
 
-            //. Badges and Rules
+            //. Badges and rules
             // Component
             let component_access_rule: AccessRule = rule!(require(global_caller(component_address)));
 
@@ -101,6 +97,7 @@ mod redroot {
             let owner_role: OwnerRole = OwnerRole::Fixed(owner_access_rule.clone());
 
             // Admin badge
+            // TODO: replace with non-fungible
             let admin_manager: ResourceManager = ResourceBuilder::new_fungible(owner_role.clone())
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata(metadata! {init {
@@ -125,7 +122,7 @@ mod redroot {
             // Position badge
             let position_manager: ResourceManager = ResourceBuilder::new_integer_non_fungible::<Position>(owner_role.clone())
                 .metadata(metadata! {init {
-                    "name"        => "Redroot Position Badge", locked;
+                    "name"        => "Redroot Seed", locked;
                     "description" => "Badge representing a position in the Redroot lending platform", locked;
                 }})
                 .mint_roles(mint_roles! {
@@ -138,7 +135,7 @@ mod redroot {
                 })
                 .create_with_no_initial_supply();
 
-            //. Internal Data Setup
+            //. Internal data setup
             // Initialise component data
             let mut component_data: Redroot = Self {
                 component_address,
@@ -155,7 +152,7 @@ mod redroot {
             let mut assets: Vec<ResourceAddress> = ADDRESSES.clone().to_vec();
             let owner_proof = owner_badge.create_proof_of_all();
 
-            // ! ---------- TESTNET ----------
+            // ! ---------- TESTING ----------
             // Create test 'Redroot' asset
             let rrt: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_MAXIMUM)
@@ -167,18 +164,18 @@ mod redroot {
                 .mint_initial_supply(10000)
                 .into();
             assets.push(rrt.resource_address());
-            // ! -/-/-/-/-/ TESTNET -/-/-/-/-/
+            // ! -/-/-/-/-/ TESTING -/-/-/-/-/
 
             for address in assets {
                 Redroot::add_asset(&mut component_data, address, owner_proof.clone());
             }
 
-            // ! ---------- TESTNET ----------
+            // ! ---------- TESTING ----------
             // Deposit all RRT into its pool
             owner_proof.authorize(|| {
-                component_data.pools.get_mut(&rrt.resource_address()).unwrap().pool.protected_deposit(rrt);
+                component_data.pools.get_mut(&rrt.resource_address()).unwrap().component.protected_deposit(rrt);
             });
-            // ! -/-/-/-/-/ TESTNET -/-/-/-/-/
+            // ! -/-/-/-/-/ TESTING -/-/-/-/-/
             owner_proof.drop();
 
             //. Component
@@ -223,11 +220,10 @@ mod redroot {
         //. ------------ Position Management ----------- /
         pub fn open_position(&mut self, supply: Vec<Bucket>) {
             // Sanity checks
-            let (valid, supply) = self.validate_buckets_not_empty(supply);
+            let (valid, supply): (bool, Vec<Bucket>) = self.validate_buckets_not_empty(supply);
             assert!(valid, "Some supplied resource is invalid, check logs");
 
             let (valuemap, supply): (ValueMap, Vec<Bucket>) = self.buckets_to_value_map(supply);
-
             let position: Position = Position::create(valuemap);
 
             // TODO: call position_supply
@@ -263,7 +259,9 @@ mod redroot {
             todo!()
         }
 
-        //. ------------- Asset Management ------------- /
+        //. ------------- Asset Operations ------------- /
+
+        //. --------------- Asset Listing -------------- /
         /// Add a fungible asset into the market, and output a FungibleAsset struct
         pub fn add_asset(&mut self, address: ResourceAddress, owner_proof: Proof) -> Asset {
             info!("[add_asset] Adding asset: {:?}", address);
@@ -329,9 +327,6 @@ mod redroot {
             }
         }
 
-        //. -------------- Pool Management ------------- /
-        // TODO; potentially extract all pool management functions to the pools module
-
         // ! ------------ Temporary Methods ------------ /
         pub fn log_asset_list(&self) {
             info!("[log_asset_list] Asset list: {:#?}", self.asset_list.to_vec());
@@ -352,14 +347,14 @@ mod redroot {
             for (i, address, _) in self.asset_list.iter() {
                 if let Some(pool) = self.pools.get(&address) {
                     info!("[log_pools] Data for pool {:?}:", address);
-                    info!("[log_pools] Vault contains: {}", pool.pool.get_vault_amount());
+                    info!("[log_pools] Vault contains: {}", pool.component.get_vault_amount());
                 } else {
                     info!("[log_pools] Pool with address {:?} not found", address);
                 }
             }
         }
 
-        //. -------------- Private Methods ------------- /
+        //. -------------- Utility Methods ------------- */
         /// Checks that the given asset is generally valid, is in the asset_list, and has a corresponding vault
         fn validate_fungible(&self, address: ResourceAddress) -> bool {
             if !address.is_fungible() {
@@ -416,7 +411,7 @@ mod redroot {
         }
 
         /// Calculates the USD values of all provided asset from the oracle
-        // ! Currently uses a mock oracle
+        // ! Uses a mock price stream
         // TODO: provide epoch to ensure data not out-of-date
         fn get_asset_values(&self, assets: ValueMap) -> (Decimal, ValueMap) {
             let mut usd_values = KeyValueStore::new();

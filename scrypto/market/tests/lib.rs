@@ -1,5 +1,4 @@
 /* ------------------ Imports ----------------- */
-use ::redroot::redroot_test::*;
 use scrypto_test::prelude::*;
 
 /* ---------------- Test Setup ---------------- */

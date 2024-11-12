@@ -3,6 +3,7 @@ use scrypto::prelude::*;
 
 /* --------------- Asset Struct --------------- */
 // TODO: Implement non-fixed APY and utilization
+// TODO: Create functions to disable asset operations
 #[derive(Debug, Clone, ScryptoSbor)]
 pub struct Asset {
     pub address: ResourceAddress,
@@ -28,14 +29,12 @@ impl Asset {
         let utilization: Decimal = dec!(0.0);
 
         Asset {
-            // Scrypto info
             address,
             resource_manager,
-            // Metadata
+
             name,
             symbol,
             // description
-            // Finance
             apy,
             utilization,
         }

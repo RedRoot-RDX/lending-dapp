@@ -2,19 +2,20 @@
 use scrypto::prelude::*;
 
 /* ------------------- Pool ------------------- */
+// TODO: extract into separate global component
 pub type TPool = Global<OneResourcePool>;
 
 #[derive(ScryptoSbor)]
 pub struct Pool {
-    pub pool: Global<OneResourcePool>,
+    pub component: TPool,
     pub pool_address: ComponentAddress,
     pub pool_unit: ResourceAddress,
     pub pool_unit_global: GlobalAddress,
 }
 
 impl Pool {
-    pub fn new(pool: TPool, pool_address: ComponentAddress, pool_unit: ResourceAddress, pool_unit_global: GlobalAddress) -> Self {
-        Pool { pool, pool_address, pool_unit, pool_unit_global }
+    pub fn new(component: TPool, pool_address: ComponentAddress, pool_unit: ResourceAddress, pool_unit_global: GlobalAddress) -> Self {
+        Pool { component, pool_address, pool_unit, pool_unit_global }
     }
 
     /// Create a pool for a given asset; automatically sets metadata
