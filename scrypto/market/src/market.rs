@@ -477,6 +477,7 @@ mod redroot {
             // Execute protected withdraw
             let mut asset = self.assets.get_mut(&address).expect("Cannot get asset entry");
             let bucket = asset.pool.component.protected_withdraw(amount, WithdrawStrategy::Rounded(RoundingMode::ToZero));
+            assert_eq!(bucket.amount(), amount, "Withdrawal does not match requested amount");
 
             info!("[hard_withdraw] Withdrawn {:?} of {:?}", bucket.amount(), address);
             bucket
