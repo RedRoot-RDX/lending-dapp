@@ -240,28 +240,28 @@ mod redroot {
         }
 
         //. ------------ Position Management ----------- /
+        // Operations
         pub fn open_position(&mut self, supply: Vec<Bucket>) -> (Bucket, Vec<Bucket>) {
             // Sanity checks
-            assert!(self.price_stream_address.is_some(), "Price stream is not linked");
+            assert!(self.validate_buckets(&supply), "Some supplied resource is invalid, check logs");
 
-            let (valid, supply): (bool, Vec<Bucket>) = self.validate_buckets_and_not_empty(supply);
-            assert!(valid, "Some supplied resource is invalid, check logs");
+            // Record supplied resources
+            let valuemap = self.buckets_to_value_map(&supply);
+            // let (total_price, prices) = self.get_asset_values(valuemap.clone());
 
-            let (valuemap, supply): (ValueMap, Vec<Bucket>) = self.buckets_to_value_map(supply);
-            let (total_price, prices) = self.get_asset_values(valuemap.clone());
+            // info!("[open_position] Total price: {}", total_price);
+            // info!("[open_position] Prices: {:#?}", prices);
 
-            info!("[open_position] Total price: {}", total_price);
-            info!("[open_position] Prices: {:#?}", prices);
-
+            // Dump supplied resources into pools
             let mut pool_units: Vec<Bucket> = Vec::new();
-
             for bucket in supply {
-                let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
-                let pool_unit = asset.pool.component.contribute(bucket);
+                // let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
+                let pool_unit = self.contribute(bucket);
 
                 pool_units.push(pool_unit);
             }
 
+            // Mint and return position NFT
             let position: Position = Position::create(valuemap);
             self.open_positions += 1;
             let position_badge = self.position_manager.mint_non_fungible(&NonFungibleLocalId::Integer(self.open_positions.into()), position);
@@ -269,16 +269,19 @@ mod redroot {
             (position_badge, pool_units)
         }
 
-        pub fn position_supply(&mut self, supply: Vec<Bucket>) {
+        pub fn position_supply(&mut self, position_proof: NonFungibleProof, supply: Vec<Bucket>) {
             // Sanity checks
-            assert!(self.price_stream_address.is_some(), "Price stream is not linked");
-
-            let (valid, supply) = self.validate_buckets_and_not_empty(supply);
+            let price_stream = self.price_stream();
+            let valid = self.validate_buckets(&supply);
             assert!(valid, "Some supplied resource is invalid, check logs");
 
-            // Check if user has an NFT
-            info!("[position_supply] Global Caller: {:?}", GLOBAL_CALLER_VIRTUAL_BADGE);
-            info!("[position_supply] Component: {:?}", self.component_address);
+            // Fetch NFT data
+            let position: Position = position_proof
+                .check_with_message(self.position_manager.address(), "Position check failed")
+                .non_fungible::<Position>()
+                .data();
+
+            info!("[position_supply] Position: {:#?}", position);
         }
 
         pub fn position_borrow(&mut self, borrow: Vec<Bucket>) {
@@ -302,35 +305,40 @@ mod redroot {
             todo!()
         }
 
+        // Internal position methods
+
         pub fn get_position_health(&self, position_proof: NonFungibleProof) -> Decimal {
             // Sanity checks
-            let price_stream = self.price_stream();
             let position: Position = position_proof
                 .check_with_message(self.position_manager.address(), "Position check failed")
                 .non_fungible::<Position>()
                 .data();
-
             info!("[position_health] Position: {:#?}", position);
+
+            // Calculate supply value
+            // let mut supply_value = dec!(0.0);
+            // for (address, amount) in position.supply {
+            //     let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
+            //     let value = price.checked_mul(amount).unwrap();
+            //     supply_value = supply_value.checked_add(value).unwrap();
+            // }
+            let (supply_value, _) = self.get_asset_values(&position.supply);
+            info!("[position_health] Supply value: {}", supply_value);
+
+            // Calculate debt value
+            // let mut debt_value = dec!(0.0);
+            // for (address, amount) in position.debt {
+            //     let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
+            //     let value = price.checked_mul(amount).unwrap();
+            //     debt_value = debt_value.checked_add(value).unwrap();
+            // }
+            let (debt_value, _) = self.get_asset_values(&position.debt);
+            info!("[position_health] Debt value: {}", debt_value);
+
             // Return 'infinity' if no debt taken out
             if position.debt.is_empty() {
                 info!("[position_health] Health: Infinity {:?}", Decimal::MAX);
                 return Decimal::MAX;
-            }
-
-            // Calculate supply value
-            let mut supply_value = dec!(0.0);
-            for (address, amount) in position.supply {
-                let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
-                let value = price.checked_mul(amount).unwrap();
-                supply_value = supply_value.checked_add(value).unwrap();
-            }
-
-            // Calculate debt value
-            let mut debt_value = dec!(0.0);
-            for (address, amount) in position.debt {
-                let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
-                let value = price.checked_mul(amount).unwrap();
-                debt_value = debt_value.checked_add(value).unwrap();
             }
 
             // health = (supply / debt) * 100
@@ -343,12 +351,7 @@ mod redroot {
         //. ------------- Asset Operations ------------- /
         fn contribute(&mut self, contribution: Bucket) -> Bucket {
             // Sanity checks
-            assert!(!contribution.is_empty(), "Bucket for {:?} is empty", contribution.resource_address());
-            assert!(
-                self.validate_fungible(contribution.resource_address()),
-                "Asset with address {:?} is invalid",
-                contribution.resource_address()
-            );
+            assert!(self.validate_bucket(&contribution), "Bucket for {:?} is invalid", contribution.resource_address());
 
             // Contribute asset
             let mut asset = self.assets.get_mut(&contribution.resource_address()).expect("Cannot get asset entry");
@@ -367,7 +370,7 @@ mod redroot {
             assert!(!pool_units.is_empty(), "Bucket for {:?} is empty", pool_units.resource_address());
             assert!(
                 self.pool_unit_to_address.get(&pool_units.resource_address()).is_some(),
-                "Pool unit with address {:?} is invalid",
+                "Address not found for pool unit {:?}",
                 pool_units.resource_address()
             );
 
@@ -556,44 +559,42 @@ mod redroot {
             }
 
             // Return true if all checks passed
-            info!("[validate_fungible] VALID: Asset {:?} successfully validated", address);
             true
         }
 
-        /// Checks that all resources provided in the buckets are valid
-        fn validate_buckets(&self, buckets: Vec<Bucket>) -> (bool, Vec<Bucket>) {
-            for bucket in &buckets {
-                if !self.validate_fungible(bucket.resource_address()) {
-                    return (false, buckets);
-                }
-
-                if bucket.amount() <= dec!(0.0) {
-                    return (false, buckets);
-                }
+        /// Checks that the resource provided in the buckets are valid and not empty
+        fn validate_bucket(&self, bucket: &Bucket) -> bool {
+            // Check that the bucket is not empty
+            if bucket.amount() <= dec!(0.0) {
+                info!("[validate_bucket] INVALID: Bucket {:?} is empty", bucket);
+                return false;
             }
 
-            (true, buckets)
+            // Check that the bucket resource is valid according to self.validate
+            if !self.validate_fungible(bucket.resource_address()) {
+                info!("[validate_bucket] INVALID: Bucket {:?} is invalid", bucket);
+                return false;
+            }
+
+            // Return true if all checks passed
+            true
         }
 
-        /// Checks that all presources provided in the buckets are valid and not empty
-        fn validate_buckets_and_not_empty(&self, buckets: Vec<Bucket>) -> (bool, Vec<Bucket>) {
-            for bucket in &buckets {
-                if bucket.amount() <= dec!(0.0) {
-                    return (false, buckets);
-                }
-
-                if !self.validate_fungible(bucket.resource_address()) {
-                    return (false, buckets);
+        /// Checks that all resources provided in the buckets are valid and not empty
+        fn validate_buckets(&self, buckets: &Vec<Bucket>) -> bool {
+            for bucket in buckets {
+                if !self.validate_bucket(bucket) == false {
+                    return false;
                 }
             }
 
-            (true, buckets)
+            true
         }
 
         /// Calculates the USD values of all provided asset from the oracle
         // ! Uses a mock price stream
         // TODO: provide epoch to ensure data not out-of-date
-        fn get_asset_values(&self, assets: ValueMap) -> (Decimal, ValueMap) {
+        fn get_asset_values(&self, assets: &ValueMap) -> (Decimal, ValueMap) {
             // Get prices
             let price_stream = self.price_stream();
 
@@ -601,12 +602,12 @@ mod redroot {
             let mut total = dec!(0.0);
 
             for (address, amount) in assets {
-                assert!(self.asset_list.find(&address).is_some(), "Asset in the ValueMap is not listed ");
+                assert!(self.asset_list.find(address).is_some(), "Asset in the ValueMap is not listed ");
 
-                let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
-                let value = price.checked_mul(amount).unwrap();
+                let price = price_stream.get_price(*address).expect(format!("Unable to get price of {:?}", address).as_str());
+                let value = price.checked_mul(*amount).unwrap();
                 total = total.checked_add(value).unwrap();
-                usd_values.insert(address, value);
+                usd_values.insert(*address, value);
             }
 
             (total, usd_values)
@@ -618,14 +619,14 @@ mod redroot {
         }
 
         /// Generate a value map from a vector of buckets
-        fn buckets_to_value_map(&self, buckets: Vec<Bucket>) -> (ValueMap, Vec<Bucket>) {
+        fn buckets_to_value_map(&self, buckets: &Vec<Bucket>) -> ValueMap {
             let mut kv: ValueMap = HashMap::new();
 
-            for bucket in &buckets {
+            for bucket in buckets {
                 kv.insert(bucket.resource_address(), bucket.amount());
             }
 
-            (kv, buckets)
+            kv
         }
     }
 }
