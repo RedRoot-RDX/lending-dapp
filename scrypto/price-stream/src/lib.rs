@@ -131,8 +131,14 @@ mod redroot_price_stream {
             self.prices.remove(&asset);
         }
 
-        pub fn get_price(&self, asset: ResourceAddress) -> Decimal {
-            *self.prices.get(&asset).expect("Asset not listed")
+        pub fn get_price(&self, asset: ResourceAddress) -> Option<Decimal> {
+            if let Some(price) = self.prices.get(&asset) {
+                info!("[PriceStream:get_price] Price of {:?} is {:?}", asset, *price);
+                Some(*price)
+            } else {
+                info!("[PriceStream:get_price] Cannot get price of  {:?}", asset);
+                None
+            }
         }
 
         // TODO: implement a get all assets function
