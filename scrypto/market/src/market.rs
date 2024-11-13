@@ -36,8 +36,6 @@ struct UntrackAssetEvent {
 // Types registered to reduce fees; include those used for KV stores, structs, NFTs, etc.
 #[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, AssetEntry, TPool, Pool, Position)]
 mod redroot {
-    use crate::position;
-
     // Method roles
     enable_method_auth! {
         roles {
@@ -45,12 +43,12 @@ mod redroot {
         },
         methods {
             // Position management
-            open_position     => PUBLIC;
-            position_supply   => PUBLIC;
-            position_borrow   => PUBLIC;
-            position_withdraw => PUBLIC;
-            position_repay    => PUBLIC;
-            get_position_health   => PUBLIC;
+            open_position       => PUBLIC;
+            position_supply     => PUBLIC;
+            position_borrow     => PUBLIC;
+            position_withdraw   => PUBLIC;
+            position_repay      => PUBLIC;
+            get_position_health => PUBLIC;
             // Asset management
             add_asset     => restrict_to: [SELF, OWNER];
             track_asset   => restrict_to: [SELF, OWNER, admin];
@@ -343,22 +341,81 @@ mod redroot {
         }
 
         //. ------------- Asset Operations ------------- /
-        fn contribute(&mut self, asset: Bucket) {}
+        fn contribute(&mut self, contribution: Bucket) -> Bucket {
+            // Sanity checks
+            assert!(!contribution.is_empty(), "Bucket for {:?} is empty", contribution.resource_address());
+            assert!(
+                self.validate_fungible(contribution.resource_address()),
+                "Asset with address {:?} is invalid",
+                contribution.resource_address()
+            );
 
-        fn redeem(&mut self, asset: Bucket) {}
+            // Contribute asset
+            let mut asset = self.assets.get_mut(&contribution.resource_address()).expect("Cannot get asset entry");
 
-        pub fn get_redemption_value(&self, pool_unit: ResourceAddress, amount: Decimal) -> Decimal {
-            if let Some(address) = self.pool_unit_to_address.get(&pool_unit) {
-                let asset = self.assets.get(&address).unwrap();
-                return asset.pool.component.get_redemption_value(amount);
-            } else {
-                panic!("Unable to find pool unit");
-            }
+            // TODO: Validate nominal operating status
+
+            info!("[contribute] Contributing [{:?} : {:?}]", contribution.resource_address(), contribution.amount());
+            let pool_unit: Bucket = asset.pool.component.contribute(contribution);
+            info!("[contribute] Received pool unit [{:?} : {:?}]", pool_unit.resource_address(), pool_unit.amount());
+
+            pool_unit
         }
 
-        pub fn hard_deposit(&mut self, asset: Bucket) {}
+        fn redeem(&mut self, pool_units: Bucket) -> Bucket {
+            // Sanity checks
+            assert!(!pool_units.is_empty(), "Bucket for {:?} is empty", pool_units.resource_address());
+            assert!(
+                self.pool_unit_to_address.get(&pool_units.resource_address()).is_some(),
+                "Pool unit with address {:?} is invalid",
+                pool_units.resource_address()
+            );
 
-        pub fn hard_withdraw(&mut self, asset: Bucket) {}
+            // Redeem asset
+            let address = *self.pool_unit_to_address.get(&pool_units.resource_address()).unwrap();
+            let mut asset = self.assets.get_mut(&address).expect("Cannot get asset entry");
+
+            // TODO: Validate nominal operating status
+
+            info!("[redeem] Redeeming [{:?} : {:?}]", pool_units.resource_address(), pool_units.amount());
+            let redemption: Bucket = asset.pool.component.redeem(pool_units);
+            info!("[redeem] Received resource [{:?} : {:?}]", redemption.resource_address(), redemption.amount());
+
+            redemption
+        }
+
+        pub fn get_redemption_value(&self, pool_unit: ResourceAddress, amount: Decimal) -> Decimal {
+            let address = self.pool_unit_to_address.get(&pool_unit).expect(format!("Unable to find asset for pool unit {:?}", pool_unit).as_str());
+            let asset = self.assets.get(&address).unwrap();
+
+            let redepmtion = asset.pool.component.get_redemption_value(amount);
+            info!("[get_redemption_value] Pool unit: [{:?} : {:?}], redeems: [{:?} : {:?}]", pool_unit, amount, address, redemption);
+            redepmtion
+        }
+
+        pub fn hard_deposit(&mut self, bucket: Bucket) {
+            // Sanity checks
+            assert!(!bucket.is_empty(), "Bucket for {:?} is empty", bucket.resource_address());
+            assert!(self.validate_fungible(bucket.resource_address()), "Asset with address {:?} is invalid", bucket.resource_address());
+
+            // Execute protected deposit
+            let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
+            asset.pool.component.protected_deposit(bucket);
+
+            info!("[hard_deposit] Deposited {:?} of {:?}", bucket.amount(), bucket.resource_address());
+        }
+
+        pub fn hard_withdraw(&mut self, address: ResourceAddress, amount: Decimal) -> Bucket {
+            // Sanity checks
+            assert!(self.validate_fungible(address), "Asset with address {:?} is invalid", address);
+
+            // Execute protected withdraw
+            let mut asset = self.assets.get_mut(&address).expect("Cannot get asset entry");
+            let bucket = asset.pool.component.protected_withdraw(amount, WithdrawStrategy::Rounded(RoundingMode::ToZero));
+
+            info!("[hard_withdraw] Withdrawn {:?} of {:?}", bucket.amount(), address);
+            bucket
+        }
 
         //. --------------- Asset Listing -------------- /
         /// Add a fungible asset into the market, and output a FungibleAsset struct
