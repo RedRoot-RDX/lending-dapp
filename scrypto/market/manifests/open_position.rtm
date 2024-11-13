@@ -1,0 +1,25 @@
+CALL_METHOD
+    Address("component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh")
+    "lock_fee"
+    Decimal("5000");
+
+CALL_METHOD
+    Address("${main_account}")
+    "withdraw"
+    Address("${xrd}")
+    Decimal("100");
+
+TAKE_FROM_WORKTOP
+    Address("${xrd}")
+    Decimal("100")
+    Bucket("bucket_${xrd}");
+
+CALL_METHOD
+    Address("${market_component}")
+    "open_position"
+    Array<Bucket>(Bucket("bucket_${xrd}"));
+
+CALL_METHOD
+    Address("${main_account}")
+    "deposit_batch"
+    Expression("ENTIRE_WORKTOP");

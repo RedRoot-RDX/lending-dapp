@@ -38,6 +38,7 @@ struct UntrackAssetEvent {
 // Types registered to reduce fees; include those used for KV stores, structs, NFTs, etc.
 #[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, Asset, TPool, Pool, Position)]
 mod redroot {
+    // Method roles
     enable_method_auth! {
         roles {
             admin => updatable_by: [OWNER];
@@ -54,7 +55,9 @@ mod redroot {
             track_asset   => restrict_to: [SELF, OWNER, admin];
             untrack_asset => restrict_to: [SELF, OWNER, admin];
             // Asset operations
-
+            get_redemption_value => PUBLIC;
+            hard_deposit         => restrict_to: [SELF, OWNER];
+            hard_withdraw        => restrict_to: [SELF, OWNER];
             // Price stream management
             link_price_stream   => restrict_to: [SELF, OWNER];
             unlink_price_stream => restrict_to: [SELF, OWNER];
@@ -63,11 +66,11 @@ mod redroot {
             log_assets     => PUBLIC;
         }
     }
-
+    // Price stream exposed functions
     extern_blueprint! {
-        "package_sim1pk3cmat8st4ja2ms8mjqy2e9ptk8y6cx40v4qnfrkgnxcp2krkpr92",
+        "package_sim1pkwaf2l9zkmake5h924229n44wp5pgckmpn0lvtucwers56awywems",
         PriceStream {
-            fn get_price(asset: ResourceAddress) -> Option<Decimal>;
+            fn get_price(&self, asset: ResourceAddress) -> Option<Decimal>;
         }
     }
 
@@ -79,6 +82,8 @@ mod redroot {
 
         asset_list: LazyVec<ResourceAddress>, // List of all 'tracked' assets; serves as a filter out of all added assets
         assets: KeyValueStore<ResourceAddress, Asset>,
+        address_to_pool_unit: KeyValueStore<ResourceAddress, ResourceAddress>,
+        pool_unit_to_address: KeyValueStore<ResourceAddress, ResourceAddress>,
 
         price_stream_address: Option<ComponentAddress>,
 
@@ -159,6 +164,8 @@ mod redroot {
                 admin_manager,
                 asset_list: LazyVec::new(),
                 assets: KeyValueStore::new(),
+                address_to_pool_unit: KeyValueStore::new(),
+                pool_unit_to_address: KeyValueStore::new(),
                 price_stream_address: None,
                 position_manager,
                 open_positions: 0u64,
@@ -233,24 +240,39 @@ mod redroot {
         }
 
         //. ------------ Position Management ----------- /
-        pub fn open_position(&mut self, supply: Vec<Bucket>) {
+        pub fn open_position(&mut self, supply: Vec<Bucket>) -> Vec<Bucket> {
             // Sanity checks
             assert!(self.price_stream_address.is_some(), "Price stream is not linked");
 
-            let (valid, supply): (bool, Vec<Bucket>) = self.validate_buckets_not_empty(supply);
+            let (valid, supply): (bool, Vec<Bucket>) = self.validate_buckets_and_not_empty(supply);
             assert!(valid, "Some supplied resource is invalid, check logs");
 
             let (valuemap, supply): (ValueMap, Vec<Bucket>) = self.buckets_to_value_map(supply);
+            let (total_price, prices) = self.get_asset_values(valuemap.clone());
+
+            info!("[open_position] Total price: {}", total_price);
+            info!("[open_position] Prices: {:#?}", prices);
+
+            let mut pool_units: Vec<Bucket> = Vec::new();
+
+            for bucket in supply {
+                let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
+                let pool_unit = asset.pool.component.contribute(bucket);
+
+                pool_units.push(pool_unit);
+            }
+
             let position: Position = Position::create(valuemap);
 
             // TODO: call position_supply
+            pool_units
         }
 
         pub fn position_supply(&mut self, supply: Vec<Bucket>) {
             // Sanity checks
             assert!(self.price_stream_address.is_some(), "Price stream is not linked");
 
-            let (valid, supply) = self.validate_buckets_not_empty(supply);
+            let (valid, supply) = self.validate_buckets_and_not_empty(supply);
             assert!(valid, "Some supplied resource is invalid, check logs");
 
             // Check if user has an NFT
@@ -280,6 +302,22 @@ mod redroot {
         }
 
         //. ------------- Asset Operations ------------- /
+        fn contribute(&mut self, asset: Bucket) {}
+
+        fn redeem(&mut self, asset: Bucket) {}
+
+        pub fn get_redemption_value(&self, pool_unit: ResourceAddress, amount: Decimal) -> Decimal {
+            if let Some(address) = self.pool_unit_to_address.get(&pool_unit) {
+                let asset = self.assets.get(&address).unwrap();
+                return asset.pool.component.get_redemption_value(amount);
+            } else {
+                panic!("Unable to find pool unit");
+            }
+        }
+
+        pub fn hard_deposit(&mut self, asset: Bucket) {}
+
+        pub fn hard_withdraw(&mut self, asset: Bucket) {}
 
         //. --------------- Asset Listing -------------- /
         /// Add a fungible asset into the market, and output a FungibleAsset struct
@@ -331,6 +369,8 @@ mod redroot {
 
             // self.pools.insert(address, pool);
             self.assets.insert(address, asset.clone());
+            self.address_to_pool_unit.insert(address, asset.pool.pool_unit);
+            self.pool_unit_to_address.insert(asset.pool.pool_unit, address);
             self.track_asset(address);
 
             asset
@@ -396,6 +436,7 @@ mod redroot {
             }
         }
 
+        // * Regular Utility Methods
         /// Checks that the given asset is generally valid, is in the asset_list, and has a corresponding vault
         fn validate_fungible(&self, address: ResourceAddress) -> bool {
             if !address.is_fungible() {
@@ -437,7 +478,7 @@ mod redroot {
         }
 
         /// Checks that all presources provided in the buckets are valid and not empty
-        fn validate_buckets_not_empty(&self, buckets: Vec<Bucket>) -> (bool, Vec<Bucket>) {
+        fn validate_buckets_and_not_empty(&self, buckets: Vec<Bucket>) -> (bool, Vec<Bucket>) {
             for bucket in &buckets {
                 if bucket.amount() <= dec!(0.0) {
                     return (false, buckets);
@@ -455,17 +496,23 @@ mod redroot {
         // ! Uses a mock price stream
         // TODO: provide epoch to ensure data not out-of-date
         fn get_asset_values(&self, assets: ValueMap) -> (Decimal, ValueMap) {
-            // Sanity checks
-            assert!(self.price_stream_address.is_some(), "Price stream is not linked");
-
             // Get prices
-            let mut usd_values = HashMap::new();
+            let price_stream = self.price_stream();
+
+            let mut usd_values: ValueMap = HashMap::new();
             let mut total = dec!(0.0);
 
             for (address, amount) in assets {
                 assert!(self.asset_list.find(&address).is_some(), "Asset in the ValueMap is not listed ");
 
-                let price_stream: Global<PriceStream> = self.price_stream_address.unwrap().into();
+                let price_opt = price_stream.get_price(address);
+                if let Some(asset_price) = price_opt {
+                    let price = asset_price.checked_mul(amount).unwrap();
+                    total = total.checked_add(price).unwrap();
+                    usd_values.insert(address, price);
+                } else {
+                    panic!("Price for asset {:?} not found", address);
+                }
             }
 
             (total, usd_values)

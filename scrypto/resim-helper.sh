@@ -3,7 +3,11 @@
 # ---------------------------------------------- #
 #? Array of all commands that should be registered. 'exit' is included automatically
 #? Registered commands need to follow the convention cmd_<name>, where <name> is an element in the array
-COMMANDS=("redeploy" "reset" "deploy" "publish_market" "instantise_market" "link_price_stream" "publish_price_stream" "instantise_price_stream")
+COMMANDS=(
+    "redeploy" "reset" "deploy"
+    "publish_market" "instantise_market" "link_price_stream" "open_position"
+    "publish_price_stream" "instantise_price_stream"
+)
 
 #. --------------- Batch Commands --------------- #
 cmd_redeploy() {
@@ -17,17 +21,29 @@ cmd_reset() {
 
     heading "Initialising main account"
     temp_account=$(resim new-account)
-    # printf "$temp_account"
-
     export main_account=$(printf "$temp_account" | grep Account | grep -o "account_.*")
     export main_privatekey=$(printf "$temp_account" | grep Private | sed "s/Private key: //")
     export main_account_badge=$(printf "$temp_account" | grep Owner | grep -o "resource_.*")
+    export main_account_badge_global=$(printf "$main_account_badge" | sed 's/:.*//')
+
+    heading "Initialising user account 1"
+    temp_account=$(resim new-account)
+    export user_account=$(printf "$temp_account" | grep Account | grep -o "account_.*")
+    export user_privatekey=$(printf "$temp_account" | grep Private | sed "s/Private key: //")
+    export user_account_badge=$(printf "$temp_account" | grep Owner | grep -o "resource_.*")
+    export user_account_badge_global=$(printf "$user_account_badge" | sed 's/:.*//')
+
     export xrd=$(resim show $main_account | grep XRD | grep -o "resource_.\S*" | sed -e "s/://")
 
     heading "Assigned env variables"
     tbl_out "main_account:        " "$main_account"
     tbl_out "main privatekey:     " "$main_privatekey"
     tbl_out "main account_badge:  " "$main_account_badge"
+    printf "\n"
+    tbl_out "user_account:        " "$user_account"
+    tbl_out "user privatekey:     " "$user_privatekey"
+    tbl_out "user account_badge:  " "$user_account_badge"
+    printf "\n"
     tbl_out "xrd:                 " "$xrd"
 }
 
@@ -41,6 +57,11 @@ cmd_deploy() {
     heading "Publishing market"
     . ./resim-helper.sh publish_market
 
+    if [[ $market_package = "" ]]; then
+        printf ""
+        return 0
+    fi
+
     heading "Instantising market"
     . ./resim-helper.sh instantise_market
 
@@ -49,9 +70,18 @@ cmd_deploy() {
 }
 
 #. --------------- Market Commands -------------- #
+# Deployment
 cmd_publish_market() {
     heading "Publishing market"
     export market_package=$(resim publish $(printf "$MARKET_PATH") | sed "s/Success! New Package: //")
+
+    if [[ $market_package = "" ]]; then
+        tput bold
+        tput setaf 1
+        printf "Failed to publish market; PriceStream package probably changed address\n"
+        tput sgr0
+        return 0
+    fi
 
     heading "Assigned env variables"
     tbl_out "market package:" "$market_package"
@@ -84,6 +114,20 @@ cmd_instantise_market() {
     tbl_out "market owner badge:" "$market_owner_badge"
 }
 
+# Position management
+cmd_open_position() {
+    # Validation
+    is_pkg_deployed
+
+    if [[ $PKG_DEPLOYED = "FALSE" ]]; then
+        return 0
+    fi
+
+    heading "Running transaction manifest"
+    resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/open_position.rtm")
+}
+
+# Price stream management
 cmd_link_price_stream() {
         # Validation
     is_pkg_deployed
@@ -93,10 +137,11 @@ cmd_link_price_stream() {
     fi
 
     heading "Running transaction manifest"
-    instantise_rtm=$(resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/$LINK_PRICE_STREAM_RTM"))
+    resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/$LINK_PRICE_STREAM_RTM")
 }
 
 #. ------------ Price Stream Commands ----------- #
+# Deployment
 cmd_publish_price_stream() {
     heading "Publishing market"
     export price_stream_package=$(resim publish $(printf "$PRICE_STREAM_PATH") | sed "s/Success! New Package: //")
