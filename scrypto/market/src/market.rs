@@ -1,6 +1,6 @@
 /* ------------------ Imports ----------------- */
 // Usages
-use crate::asset::{Asset, ADDRESSES};
+use crate::asset::{AssetEntry, ADDRESSES};
 use crate::pool::{Pool, TPool};
 use crate::position::Position;
 use crate::utils::{LazyVec, ValueMap};
@@ -11,8 +11,6 @@ use scrypto::prelude::*;
 struct InstantiseEvent {
     component_address: ComponentAddress,
     asset_list: Vec<ResourceAddress>,
-    // vaults:            KeyValueStore<ResourceAddress, Vault>,
-    // pools:             KeyValueStore<ResourceAddress, Pool>,
 }
 
 #[derive(ScryptoSbor, ScryptoEvent)]
@@ -36,8 +34,10 @@ struct UntrackAssetEvent {
 #[blueprint]
 #[events(InstantiseEvent, AddAssetEvent, TrackAssetEvent, UntrackAssetEvent)]
 // Types registered to reduce fees; include those used for KV stores, structs, NFTs, etc.
-#[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, Asset, TPool, Pool, Position)]
+#[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, AssetEntry, TPool, Pool, Position)]
 mod redroot {
+    use crate::position;
+
     // Method roles
     enable_method_auth! {
         roles {
@@ -50,6 +50,7 @@ mod redroot {
             position_borrow   => PUBLIC;
             position_withdraw => PUBLIC;
             position_repay    => PUBLIC;
+            get_position_health   => PUBLIC;
             // Asset management
             add_asset     => restrict_to: [SELF, OWNER];
             track_asset   => restrict_to: [SELF, OWNER, admin];
@@ -66,7 +67,8 @@ mod redroot {
             log_assets     => PUBLIC;
         }
     }
-    // Price stream exposed functions
+
+    // Importing price stream blueprint
     extern_blueprint! {
         "package_sim1pkwaf2l9zkmake5h924229n44wp5pgckmpn0lvtucwers56awywems",
         PriceStream {
@@ -81,7 +83,7 @@ mod redroot {
         admin_manager: ResourceManager,
 
         asset_list: LazyVec<ResourceAddress>, // List of all 'tracked' assets; serves as a filter out of all added assets
-        assets: KeyValueStore<ResourceAddress, Asset>,
+        assets: KeyValueStore<ResourceAddress, AssetEntry>,
         address_to_pool_unit: KeyValueStore<ResourceAddress, ResourceAddress>,
         pool_unit_to_address: KeyValueStore<ResourceAddress, ResourceAddress>,
 
@@ -240,7 +242,7 @@ mod redroot {
         }
 
         //. ------------ Position Management ----------- /
-        pub fn open_position(&mut self, supply: Vec<Bucket>) -> Vec<Bucket> {
+        pub fn open_position(&mut self, supply: Vec<Bucket>) -> (Bucket, Vec<Bucket>) {
             // Sanity checks
             assert!(self.price_stream_address.is_some(), "Price stream is not linked");
 
@@ -263,9 +265,10 @@ mod redroot {
             }
 
             let position: Position = Position::create(valuemap);
+            self.open_positions += 1;
+            let position_badge = self.position_manager.mint_non_fungible(&NonFungibleLocalId::Integer(self.open_positions.into()), position);
 
-            // TODO: call position_supply
-            pool_units
+            (position_badge, pool_units)
         }
 
         pub fn position_supply(&mut self, supply: Vec<Bucket>) {
@@ -301,6 +304,44 @@ mod redroot {
             todo!()
         }
 
+        pub fn get_position_health(&self, position_proof: NonFungibleProof) -> Decimal {
+            // Sanity checks
+            let price_stream = self.price_stream();
+            let position: Position = position_proof
+                .check_with_message(self.position_manager.address(), "Position check failed")
+                .non_fungible::<Position>()
+                .data();
+
+            info!("[position_health] Position: {:#?}", position);
+            // Return 'infinity' if no debt taken out
+            if position.debt.is_empty() {
+                info!("[position_health] Health: Infinity {:?}", Decimal::MAX);
+                return Decimal::MAX;
+            }
+
+            // Calculate supply value
+            let mut supply_value = dec!(0.0);
+            for (address, amount) in position.supply {
+                let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
+                let value = price.checked_mul(amount).unwrap();
+                supply_value = supply_value.checked_add(value).unwrap();
+            }
+
+            // Calculate debt value
+            let mut debt_value = dec!(0.0);
+            for (address, amount) in position.debt {
+                let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
+                let value = price.checked_mul(amount).unwrap();
+                debt_value = debt_value.checked_add(value).unwrap();
+            }
+
+            // health = (supply / debt) * 100
+            let health = supply_value.checked_div(debt_value).unwrap().checked_mul(dec!(100)).unwrap();
+            info!("[position_health] Health: {}", health);
+
+            health
+        }
+
         //. ------------- Asset Operations ------------- /
         fn contribute(&mut self, asset: Bucket) {}
 
@@ -321,7 +362,7 @@ mod redroot {
 
         //. --------------- Asset Listing -------------- /
         /// Add a fungible asset into the market, and output a FungibleAsset struct
-        pub fn add_asset(&mut self, address: ResourceAddress) -> Asset {
+        pub fn add_asset(&mut self, address: ResourceAddress) -> AssetEntry {
             info!("[add_asset] Adding asset: {:?}", address);
 
             // assert_eq!(self.owner_badge_address, owner_badge.resource_address(), "Owner badge must be provided");
@@ -357,7 +398,7 @@ mod redroot {
             // info!("Post-auth");
 
             // Create FungibleAsset
-            let asset = Asset::new(address, pool);
+            let asset = AssetEntry::new(address, pool);
             info!("[add_asset] FungibleAsset: {:#?}", asset);
 
             // Fire AddAssetEvent
@@ -505,14 +546,10 @@ mod redroot {
             for (address, amount) in assets {
                 assert!(self.asset_list.find(&address).is_some(), "Asset in the ValueMap is not listed ");
 
-                let price_opt = price_stream.get_price(address);
-                if let Some(asset_price) = price_opt {
-                    let price = asset_price.checked_mul(amount).unwrap();
-                    total = total.checked_add(price).unwrap();
-                    usd_values.insert(address, price);
-                } else {
-                    panic!("Price for asset {:?} not found", address);
-                }
+                let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
+                let value = price.checked_mul(amount).unwrap();
+                total = total.checked_add(value).unwrap();
+                usd_values.insert(address, value);
             }
 
             (total, usd_values)

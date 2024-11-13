@@ -5,7 +5,8 @@
 #? Registered commands need to follow the convention cmd_<name>, where <name> is an element in the array
 COMMANDS=(
     "redeploy" "reset" "deploy"
-    "publish_market" "instantise_market" "link_price_stream" "open_position"
+    "publish_market" "instantise_market" "link_price_stream"
+    "open_position" "get_position_health"
     "publish_price_stream" "instantise_price_stream"
 )
 
@@ -108,10 +109,12 @@ cmd_instantise_market() {
     printf "$resources" | grep -o "Resource:.*"
     # sed -n '[line],[line]p' specifies the line number of the resource address; both of the [line] parameters should be the same
     export market_owner_badge=$(printf "$resources" | sed -n '1,1p' | grep -o "resource_.*")
+    export market_position_badge=$(printf "$resources" | sed -n '3,3p' | grep -o "resource_.*")
 
     heading "Assigned env variables"
     tbl_out "market component:  " "$market_component"
     tbl_out "market owner badge:" "$market_owner_badge"
+    tbl_out "market position badge:" "$market_position_badge"
 }
 
 # Position management
@@ -123,8 +126,28 @@ cmd_open_position() {
         return 0
     fi
 
+    use_account_user
+
     heading "Running transaction manifest"
     resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/open_position.rtm")
+
+    use_account_main
+}
+
+cmd_get_position_health() {
+    # Validation
+    is_pkg_deployed
+
+    if [[ $PKG_DEPLOYED = "FALSE" ]]; then
+        return 0
+    fi
+
+    use_account_user
+
+    heading "Running transaction manifest"
+    resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/get_position_health.rtm")
+
+    use_account_main
 }
 
 # Price stream management
@@ -224,6 +247,16 @@ is_pkg_deployed() {
     tput sgr0
 }
 
+# Resim account management functions
+use_account_main() {
+    heading "Set main account as default"
+    resim set-default-account $main_account $main_privatekey $main_account_badge
+}
+
+use_account_user() {
+    heading "Set user account as default"
+    resim set-default-account $user_account $user_privatekey $user_account_badge
+}
 
 # --------------- Pre-run Checks --------------- #
 # Check that the manifest path is set

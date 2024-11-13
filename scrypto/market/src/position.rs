@@ -4,7 +4,7 @@ use scrypto::prelude::*;
 use crate::utils::ValueMap;
 
 /* ------------------- Badge ------------------ */
-#[derive(NonFungibleData, ScryptoSbor)]
+#[derive(NonFungibleData, ScryptoSbor, Debug)]
 pub struct Position {
     #[mutable]
     pub supply: ValueMap,

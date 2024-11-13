@@ -4,20 +4,18 @@ CALL_METHOD
     Decimal("5000");
 
 CALL_METHOD
-    Address("${user_account}")
-    "withdraw"
-    Address("${xrd}")
-    Decimal("100");
+  Address("${user_account}")
+  "create_proof_of_non_fungibles"
+  Address("${market_position_badge}")
+  Array<NonFungibleLocalId>(NonFungibleLocalId("#1#"));
 
-TAKE_FROM_WORKTOP
-    Address("${xrd}")
-    Decimal("100")
-    Bucket("bucket_${xrd}");
+POP_FROM_AUTH_ZONE
+    Proof("market_position_proof");
 
 CALL_METHOD
     Address("${market_component}")
-    "open_position"
-    Array<Bucket>(Bucket("bucket_${xrd}"));
+    "get_position_health"
+    Proof("market_position_proof");
 
 CALL_METHOD
     Address("${user_account}")

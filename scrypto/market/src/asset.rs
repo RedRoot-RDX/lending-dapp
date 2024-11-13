@@ -6,7 +6,7 @@ use scrypto::prelude::*;
 // TODO: Implement non-fixed APY and utilization
 // TODO: Create functions to disable asset operations
 #[derive(Clone, ScryptoSbor, Debug)]
-pub struct Asset {
+pub struct AssetEntry {
     pub address: ResourceAddress,
     pub resource_manager: ResourceManager,
 
@@ -19,9 +19,9 @@ pub struct Asset {
     pub utilization: Decimal,
 }
 
-impl Asset {
+impl AssetEntry {
     /* ------------------- Inits ------------------ */
-    pub fn new(address: ResourceAddress, pool: Pool) -> Asset {
+    pub fn new(address: ResourceAddress, pool: Pool) -> AssetEntry {
         let resource_manager: ResourceManager = ResourceManager::from_address(address.clone());
 
         let name: String = resource_manager.get_metadata("name").expect("Cannot get asset name").expect("Asset name is None");
@@ -31,7 +31,7 @@ impl Asset {
         let apy: Decimal = dec!(0.1);
         let utilization: Decimal = dec!(0.0);
 
-        Asset {
+        AssetEntry {
             address,
             resource_manager,
 
