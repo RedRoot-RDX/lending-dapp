@@ -150,6 +150,10 @@ mod redroot {
                     "name"        => "Redroot Seed", locked;
                     "description" => "Badge representing a position in the Redroot lending platform", locked;
                 }})
+                .non_fungible_data_update_roles(non_fungible_data_update_roles! {
+                    non_fungible_data_updater         =>component_access_rule.clone();
+                    non_fungible_data_updater_updater => rule!(deny_all);
+                })
                 .mint_roles(mint_roles! {
                     minter         => component_access_rule.clone();
                     minter_updater => rule!(deny_all);
@@ -273,7 +277,7 @@ mod redroot {
             (position_badge, pool_units)
         }
 
-        pub fn position_supply(&mut self, position_proof: NonFungibleProof, supply: Vec<Bucket>) {
+        pub fn position_supply(&mut self, position_proof: NonFungibleProof, supply: Vec<Bucket>) -> Vec<Bucket> {
             // Sanity checks
             assert!(self.validate_buckets(&supply), "Some supplied resource is invalid, check logs");
 
@@ -287,7 +291,11 @@ mod redroot {
             // Record supplied resources
             let mut new_supply = self.buckets_to_value_map(&supply);
             for (address, amount) in position.supply {
-                new_supply.insert(address, amount);
+                if let Some(existing) = new_supply.get(&address) {
+                    new_supply.insert(address, existing.checked_add(amount).unwrap());
+                } else {
+                    new_supply.insert(address, amount);
+                }
             }
 
             // Dump supplied resources into pools
@@ -301,6 +309,9 @@ mod redroot {
 
             // Update NFT data
             self.position_manager.update_non_fungible_data(local_id, "supply", new_supply);
+
+            // Return pool units
+            pool_units
         }
 
         pub fn position_borrow(&mut self, position_proof: NonFungibleProof, borrow: ValueMap) -> Vec<Bucket> {
@@ -320,7 +331,11 @@ mod redroot {
             // Record borrowed resources
             let mut new_debt = borrow.clone();
             for (address, amount) in position.debt {
-                new_debt.insert(address, amount);
+                if let Some(existing) = new_debt.get(&address) {
+                    new_debt.insert(address, existing.checked_add(amount).unwrap());
+                } else {
+                    new_debt.insert(address, amount);
+                }
             }
 
             // Ensure that operation won't put position health below 1.0
@@ -366,28 +381,18 @@ mod redroot {
                 .data();
             info!("[get_position_health] Position: {:#?}", position);
 
-            // Calculate supply value
-            // let mut supply_value = dec!(0.0);
-            // for (address, amount) in position.supply {
-            //     let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
-            //     let value = price.checked_mul(amount).unwrap();
-            //     supply_value = supply_value.checked_add(value).unwrap();
-            // }
-
-            // Calculate debt value
-            // let mut debt_value = dec!(0.0);
-            // for (address, amount) in position.debt {
-            //     let price = price_stream.get_price(address).expect(format!("Unable to get price of {:?}", address).as_str());
-            //     let value = price.checked_mul(amount).unwrap();
-            //     debt_value = debt_value.checked_add(value).unwrap();
-            // }
-
             let health = self.calculate_position_health(position.supply, position.debt);
 
             health
         }
 
         pub fn calculate_position_health(&self, supply: ValueMap, debt: ValueMap) -> Decimal {
+            // Return 'infinity' if no debt taken out
+            if debt.is_empty() {
+                info!("[calculate_position_health] Health: Infinity {:?}", Decimal::MAX);
+                return Decimal::MAX;
+            }
+
             // Calculate supply value
             let (supply_value, _) = self.get_asset_values(&supply);
             info!("[calculate_position_health] Supply value: {}", supply_value);
@@ -396,16 +401,12 @@ mod redroot {
             let (debt_value, _) = self.get_asset_values(&debt);
             info!("[calculate_position_health] Debt value: {}", debt_value);
 
-            // TODO: move to top
-            // Return 'infinity' if no debt taken out
-            if debt.is_empty() {
-                info!("[calculate_position_health] Health: Infinity {:?}", Decimal::MAX);
-                return Decimal::MAX;
-            }
+            // Sanity check
+            assert!(debt_value > dec!(0.0), "Debt value must be greater than 0, I don't know how we got here. Debt: {:?}", debt);
 
-            // health = (supply / debt) * 100
-            let health = supply_value.checked_div(debt_value).unwrap().checked_mul(dec!(100)).unwrap();
-            info!("[calculate_position_health] Health: {}", health);
+            // health = (supply / debt), * 100 for display
+            let health = supply_value.checked_div(debt_value).unwrap();
+            info!("[calculate_position_health] Health: {:?}", health);
 
             health
         }
@@ -453,9 +454,9 @@ mod redroot {
             let address = self.pool_unit_to_address.get(&pool_unit).expect(format!("Unable to find asset for pool unit {:?}", pool_unit).as_str());
             let asset = self.assets.get(&address).unwrap();
 
-            let redepmtion = asset.pool.component.get_redemption_value(amount);
-            info!("[get_redemption_value] Pool unit: [{:?} : {:?}], redeems: [{:?} : {:?}]", pool_unit, amount, address, redemption);
-            redepmtion
+            let redemption = asset.pool.component.get_redemption_value(amount);
+            info!("[get_redemption_value] Pool unit: [{:?} : {:?}], redeems: [{:?} : {:?}]", pool_unit, amount, *address, redemption);
+            redemption
         }
 
         pub fn hard_deposit(&mut self, bucket: Bucket) {
@@ -464,10 +465,11 @@ mod redroot {
             assert!(self.validate_fungible(bucket.resource_address()), "Asset with address {:?} is invalid", bucket.resource_address());
 
             // Execute protected deposit
+            let amount = bucket.amount();
             let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
             asset.pool.component.protected_deposit(bucket);
 
-            info!("[hard_deposit] Deposited {:?} of {:?}", bucket.amount(), bucket.resource_address());
+            info!("[hard_deposit] Deposited [{:?} : {:?}]", asset.address, amount);
         }
 
         pub fn hard_withdraw(&mut self, address: ResourceAddress, amount: Decimal) -> Bucket {
@@ -646,7 +648,7 @@ mod redroot {
         /// Checks that all resources provided in the buckets are valid and not empty
         fn validate_buckets(&self, buckets: &Vec<Bucket>) -> bool {
             for bucket in buckets {
-                if !self.validate_bucket(bucket) == false {
+                if !self.validate_bucket(bucket) {
                     return false;
                 }
             }

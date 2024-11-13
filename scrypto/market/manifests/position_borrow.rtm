@@ -1,0 +1,28 @@
+CALL_METHOD
+    Address("component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh")
+    "lock_fee"
+    Decimal("5000");
+
+# Get position badge proof
+CALL_METHOD
+  Address("${user_account}")
+  "create_proof_of_non_fungibles"
+  Address("${market_position_badge}")
+  Array<NonFungibleLocalId>(NonFungibleLocalId("#1#"));
+
+POP_FROM_AUTH_ZONE
+    Proof("market_position_proof");
+# --------
+
+CALL_METHOD
+    Address("${market_component}")
+    "position_borrow"
+    Proof("market_position_proof")
+    Map<Address, Decimal>(
+        Address("${xrd}") => Decimal("100")
+    );
+
+CALL_METHOD
+    Address("${user_account}")
+    "deposit_batch"
+    Expression("ENTIRE_WORKTOP");

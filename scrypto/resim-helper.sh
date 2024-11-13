@@ -4,9 +4,16 @@
 #? Array of all commands that should be registered. 'exit' is included automatically
 #? Registered commands need to follow the convention cmd_<name>, where <name> is an element in the array
 COMMANDS=(
+    # Batch
     "redeploy" "reset" "deploy"
+    # -------- Market
+    # Deployment
     "publish_market" "instantise_market" "link_price_stream"
-    "open_position" "get_position_health"
+    # Position management
+    "open_position" "position_supply" "position_borrow"
+    # Internal position operations
+    "get_position_health"
+    # -------- Price stream
     "publish_price_stream" "instantise_price_stream"
 )
 
@@ -134,6 +141,39 @@ cmd_open_position() {
     use_account_main
 }
 
+cmd_position_supply() {
+    # Validation
+    is_pkg_deployed
+
+    if [[ $PKG_DEPLOYED = "FALSE" ]]; then
+        return 0
+    fi
+
+    use_account_user
+
+    heading "Running transaction manifest"
+    resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/position_supply.rtm")
+
+    use_account_main
+}
+
+cmd_position_borrow() {
+    # Validation
+    is_pkg_deployed
+
+    if [[ $PKG_DEPLOYED = "FALSE" ]]; then
+        return 0
+    fi
+
+    use_account_user
+
+    heading "Running transaction manifest"
+    resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/position_borrow.rtm")
+
+    use_account_main
+}
+
+# Internal position operations
 cmd_get_position_health() {
     # Validation
     is_pkg_deployed
