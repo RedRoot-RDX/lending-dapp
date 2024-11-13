@@ -36,6 +36,8 @@ struct UntrackAssetEvent {
 // Types registered to reduce fees; include those used for KV stores, structs, NFTs, etc.
 #[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, AssetEntry, TPool, Pool, Position)]
 mod redroot {
+    use crate::position;
+
     // Method roles
     enable_method_auth! {
         roles {
@@ -43,12 +45,14 @@ mod redroot {
         },
         methods {
             // Position management
-            open_position       => PUBLIC;
-            position_supply     => PUBLIC;
-            position_borrow     => PUBLIC;
-            position_withdraw   => PUBLIC;
-            position_repay      => PUBLIC;
-            get_position_health => PUBLIC;
+            open_position     => PUBLIC;
+            position_supply   => PUBLIC;
+            position_borrow   => PUBLIC;
+            position_withdraw => PUBLIC;
+            position_repay    => PUBLIC;
+            // Internal position operations
+            get_position_health       => PUBLIC;
+            calculate_position_health => PUBLIC;
             // Asset management
             add_asset     => restrict_to: [SELF, OWNER];
             track_asset   => restrict_to: [SELF, OWNER, admin];
@@ -271,24 +275,72 @@ mod redroot {
 
         pub fn position_supply(&mut self, position_proof: NonFungibleProof, supply: Vec<Bucket>) {
             // Sanity checks
-            let price_stream = self.price_stream();
-            let valid = self.validate_buckets(&supply);
-            assert!(valid, "Some supplied resource is invalid, check logs");
+            assert!(self.validate_buckets(&supply), "Some supplied resource is invalid, check logs");
 
             // Fetch NFT data
-            let position: Position = position_proof
-                .check_with_message(self.position_manager.address(), "Position check failed")
-                .non_fungible::<Position>()
-                .data();
+            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
+            let local_id = nft.local_id();
+            let position: Position = nft.data();
 
             info!("[position_supply] Position: {:#?}", position);
+
+            // Record supplied resources
+            let mut new_supply = self.buckets_to_value_map(&supply);
+            for (address, amount) in position.supply {
+                new_supply.insert(address, amount);
+            }
+
+            // Dump supplied resources into pools
+            let mut pool_units: Vec<Bucket> = Vec::new();
+            for bucket in supply {
+                // let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
+                let pool_unit = self.contribute(bucket);
+
+                pool_units.push(pool_unit);
+            }
+
+            // Update NFT data
+            self.position_manager.update_non_fungible_data(local_id, "supply", new_supply);
         }
 
-        pub fn position_borrow(&mut self, borrow: Vec<Bucket>) {
+        pub fn position_borrow(&mut self, position_proof: NonFungibleProof, borrow: ValueMap) -> Vec<Bucket> {
             // Sanity checks
-            assert!(self.price_stream_address.is_some(), "Price stream is not linked");
+            for (address, amount) in &borrow {
+                assert!(amount > &dec!(0.0), "Borrow amount must be greater than 0");
+                assert!(self.validate_fungible(*address), "Asset with address {:?} is invalid", address);
+            }
 
-            todo!()
+            // Fetch NFT data
+            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
+            let local_id = nft.local_id();
+            let position: Position = nft.data();
+
+            info!("[position_borrow] Position: {:#?}", position);
+
+            // Record borrowed resources
+            let mut new_debt = borrow.clone();
+            for (address, amount) in position.debt {
+                new_debt.insert(address, amount);
+            }
+
+            // Ensure that operation won't put position health below 1.0
+            let health = self.calculate_position_health(position.supply, new_debt.clone());
+            assert!(health >= dec!(1.0), "Position health will be below 1.0. Reverting operation");
+
+            // Get resources from pools
+            let mut borrowed: Vec<Bucket> = Vec::new();
+            for (address, amount) in borrow {
+                // let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
+                let borrow = self.hard_withdraw(address, amount);
+
+                borrowed.push(borrow);
+            }
+
+            // Update NFT data
+            self.position_manager.update_non_fungible_data(local_id, "debt", new_debt);
+
+            // Return borrowed resources
+            borrowed
         }
 
         pub fn position_withdraw(&mut self, asset: Bucket) {
@@ -306,14 +358,13 @@ mod redroot {
         }
 
         // Internal position methods
-
         pub fn get_position_health(&self, position_proof: NonFungibleProof) -> Decimal {
             // Sanity checks
             let position: Position = position_proof
                 .check_with_message(self.position_manager.address(), "Position check failed")
                 .non_fungible::<Position>()
                 .data();
-            info!("[position_health] Position: {:#?}", position);
+            info!("[get_position_health] Position: {:#?}", position);
 
             // Calculate supply value
             // let mut supply_value = dec!(0.0);
@@ -322,8 +373,6 @@ mod redroot {
             //     let value = price.checked_mul(amount).unwrap();
             //     supply_value = supply_value.checked_add(value).unwrap();
             // }
-            let (supply_value, _) = self.get_asset_values(&position.supply);
-            info!("[position_health] Supply value: {}", supply_value);
 
             // Calculate debt value
             // let mut debt_value = dec!(0.0);
@@ -332,18 +381,31 @@ mod redroot {
             //     let value = price.checked_mul(amount).unwrap();
             //     debt_value = debt_value.checked_add(value).unwrap();
             // }
-            let (debt_value, _) = self.get_asset_values(&position.debt);
-            info!("[position_health] Debt value: {}", debt_value);
 
+            let health = self.calculate_position_health(position.supply, position.debt);
+
+            health
+        }
+
+        pub fn calculate_position_health(&self, supply: ValueMap, debt: ValueMap) -> Decimal {
+            // Calculate supply value
+            let (supply_value, _) = self.get_asset_values(&supply);
+            info!("[calculate_position_health] Supply value: {}", supply_value);
+
+            // Calculate debt value
+            let (debt_value, _) = self.get_asset_values(&debt);
+            info!("[calculate_position_health] Debt value: {}", debt_value);
+
+            // TODO: move to top
             // Return 'infinity' if no debt taken out
-            if position.debt.is_empty() {
-                info!("[position_health] Health: Infinity {:?}", Decimal::MAX);
+            if debt.is_empty() {
+                info!("[calculate_position_health] Health: Infinity {:?}", Decimal::MAX);
                 return Decimal::MAX;
             }
 
             // health = (supply / debt) * 100
             let health = supply_value.checked_div(debt_value).unwrap().checked_mul(dec!(100)).unwrap();
-            info!("[position_health] Health: {}", health);
+            info!("[calculate_position_health] Health: {}", health);
 
             health
         }
