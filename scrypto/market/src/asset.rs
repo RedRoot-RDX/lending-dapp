@@ -10,7 +10,8 @@ pub struct Asset {
     pub address: ResourceAddress,
     pub resource_manager: ResourceManager,
 
-    // pub pool: Pool,
+    pub pool: Pool,
+
     pub name: String,
     pub symbol: String,
     // pub description: String,
@@ -20,7 +21,7 @@ pub struct Asset {
 
 impl Asset {
     /* ------------------- Inits ------------------ */
-    pub fn new(address: ResourceAddress) -> Asset {
+    pub fn new(address: ResourceAddress, pool: Pool) -> Asset {
         let resource_manager: ResourceManager = ResourceManager::from_address(address.clone());
 
         let name: String = resource_manager.get_metadata("name").expect("Cannot get asset name").expect("Asset name is None");
@@ -34,7 +35,8 @@ impl Asset {
             address,
             resource_manager,
 
-            // pool,
+            pool,
+
             name,
             symbol,
             // description

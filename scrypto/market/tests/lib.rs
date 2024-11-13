@@ -45,13 +45,23 @@ fn setup() -> (
     let (public_key, private_key, account) = ledger.new_allocated_account();
     let user_account = Account { public_key, private_key, address: account };
 
+    //. Create additional resources
+    let hug: ResourceAddress = create_fungible(&mut ledger, dec!(10000), "HUG", &main_account);
+    let usdc: ResourceAddress = create_fungible(&mut ledger, dec!(10000), "USDC", &main_account);
+    let weth: ResourceAddress = create_fungible(&mut ledger, dec!(10000), "wETH", &main_account);
+
     //. Package Setup
     let package_address = ledger.compile_and_publish(this_package!()); // Publish package
 
     // Instantiate component (Redroot)
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
-        .call_function(package_address, "Redroot", "instantiate", manifest_args!(main_account.address.clone()))
+        .call_function(
+            package_address,
+            "Redroot",
+            "instantiate",
+            manifest_args!(main_account.address.clone(), vec![hug, usdc, weth]), // ! REMOVE VECTOR WHEN NOT ON DEVNET
+        )
         .deposit_batch(main_account.address)
         .build();
     let receipt = ledger.execute_manifest(manifest, vec![main_account.nf_global_id()]);
@@ -62,27 +72,22 @@ fn setup() -> (
     let component = receipt.expect_commit(true).new_component_addresses()[0];
     let owner_badge = receipt.expect_commit(true).new_resource_addresses()[0];
 
-    //. Create additional resources
-    let hug: ResourceAddress = create_owned_fungible(&mut ledger, dec!(10000), "HUG", &main_account, owner_badge);
-    let usdc: ResourceAddress = create_owned_fungible(&mut ledger, dec!(10000), "USDC", &main_account, owner_badge);
-    let weth: ResourceAddress = create_owned_fungible(&mut ledger, dec!(10000), "wETH", &main_account, owner_badge);
-
-    // add_asset HUG
-    add_asset(&mut ledger, component, &main_account, owner_badge, hug);
-    // add_asset USDC
-    add_asset(&mut ledger, component, &main_account, owner_badge, usdc);
-    // add_asset wETH
-    add_asset(&mut ledger, component, &main_account, owner_badge, weth);
+    // // add_asset HUG
+    // add_asset(&mut ledger, component, hug, &main_account, owner_badge);
+    // // add_asset USDC
+    // add_asset(&mut ledger, component, usdc, &main_account, owner_badge);
+    // // add_asset wETH
+    // add_asset(&mut ledger, component, weth, &main_account, owner_badge);
 
     //. Return
     (ledger, package_address, component, (main_account, user_account), owner_badge)
 }
 
-fn create_owned_fungible(ledger: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>, amount: Decimal, name: &str, owner_account: &Account, owner_badge: ResourceAddress) -> ResourceAddress {
+fn create_fungible(ledger: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>, amount: Decimal, name: &str, owner_account: &Account) -> ResourceAddress {
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
         .create_fungible_resource(
-            OwnerRole::Fixed(rule!(require(owner_badge))),
+            OwnerRole::None,
             true,
             DIVISIBILITY_MAXIMUM,
             FungibleResourceRoles::default(),
@@ -99,7 +104,7 @@ fn create_owned_fungible(ledger: &mut LedgerSimulator<NoExtension, InMemorySubst
     receipt.expect_commit(true).new_resource_addresses()[0]
 }
 
-fn add_asset(ledger: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>, component: ComponentAddress, owner_account: &Account, owner_badge: ResourceAddress, address: ResourceAddress) {
+fn add_asset(ledger: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>, component: ComponentAddress, address: ResourceAddress, owner_account: &Account, owner_badge: ResourceAddress) {
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
         .create_proof_from_account_of_amount(owner_account.address, owner_badge, dec!(1))

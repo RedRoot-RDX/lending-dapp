@@ -35,7 +35,8 @@ struct UntrackAssetEvent {
 /* ----------------- Blueprint ---------------- */
 #[blueprint]
 #[events(InstantiseEvent, AddAssetEvent, TrackAssetEvent, UntrackAssetEvent)]
-#[types(Decimal, ResourceAddress, Asset, TPool, Pool, Position)] // Types registered to reduce fees; include those used for KV stores, NFTs, etc.
+// Types registered to reduce fees; include those used for KV stores, structs, NFTs, etc.
+#[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, Asset, TPool, Pool, Position)]
 mod redroot {
     enable_method_auth! {
         roles {
@@ -54,10 +55,12 @@ mod redroot {
             untrack_asset => restrict_to: [SELF, OWNER, admin];
             // Pool management
 
-            // Temporary methods
+            // Price stream management
+            link_price_stream   => restrict_to: [SELF, OWNER];
+            unlink_price_stream => restrict_to: [SELF, OWNER];
+            // Utility methods
             log_asset_list => PUBLIC;
             log_assets     => PUBLIC;
-            log_pools      => PUBLIC;
         }
     }
 
@@ -69,14 +72,20 @@ mod redroot {
 
         asset_list: LazyVec<ResourceAddress>, // List of all 'tracked' assets; serves as a filter out of all added assets
         assets: KeyValueStore<ResourceAddress, Asset>,
-        pools: KeyValueStore<ResourceAddress, Pool>,
+
+        price_stream: Option<Global<AnyComponent>>,
 
         position_manager: ResourceManager,
         open_positions: u64,
     }
 
     impl Redroot {
-        pub fn instantiate(dapp_definition_address: ComponentAddress) -> (Global<Redroot>, Bucket) {
+        pub fn instantiate(
+            dapp_definition_address: ComponentAddress,
+            // ! -------- TESTING --------
+            test_assets: Vec<ResourceAddress>,
+            // ! -/-/-/-/-/-/-/-/-/-/-/-/-
+        ) -> (Global<Redroot>, Bucket) {
             // Reserve address
             let (address_reservation, component_address) = Runtime::allocate_component_address(Redroot::blueprint_id());
 
@@ -143,18 +152,38 @@ mod redroot {
                 admin_manager,
                 asset_list: LazyVec::new(),
                 assets: KeyValueStore::new(),
-                pools: KeyValueStore::new(),
+                price_stream: None,
                 position_manager,
                 open_positions: 0u64,
             };
 
             // Add all assets
-            let assets: Vec<ResourceAddress> = ADDRESSES.clone().to_vec();
+            let mut assets: Vec<ResourceAddress> = ADDRESSES.clone().to_vec();
             let owner_proof = owner_badge.create_proof_of_all();
+
+            // ! -------- TESTING --------
+            for address in test_assets {
+                assets.push(address);
+            }
+            // ! -/-/-/-/-/-/-/-/-/-/-/-/-
 
             for address in assets {
                 let asset = Redroot::add_asset(&mut component_data, address);
-                // , owner_proof.clone()
+
+                // ! Set pool unit metadata; has to be done manually for assets not in the instantisation asset list
+                let pool_unit_rm: ResourceManager = ResourceManager::from_address(asset.pool.pool_unit.clone());
+
+                let meta_name = format!("Redroot {} Pool Unit", asset.name).to_string();
+                let meta_symbol = format!("$rrt{}", asset.symbol).to_string();
+                let meta_description = format!("Redroot pool unit for the {} pool", asset.symbol).to_string();
+
+                info!("Pre-auth");
+                owner_proof.authorize(|| {
+                    pool_unit_rm.set_metadata("name", meta_name);
+                    pool_unit_rm.set_metadata("symbol", meta_symbol);
+                    pool_unit_rm.set_metadata("description", meta_description);
+                });
+                info!("Post-auth");
             }
 
             //. Component
@@ -241,18 +270,15 @@ mod redroot {
 
             // Validation
             assert!(address.is_fungible(), "Provided asset must be fungible.");
-            assert!(self.pools.get(&address).is_none(), "Asset already has a pool");
+            assert!(self.assets.get(&address).is_none(), "Asset already has an entry");
+            // assert!(self.pools.get(&address).is_none(), "Asset already has a pool");
             assert!(!self.validate_fungible(address), "Cannot add asset {:?}, as it is already added and tracked", address);
-
-            // Create FungibleAsset
-            let asset = Asset::new(address);
-            info!("[add_asset] FungibleAsset: {:#?}", asset);
 
             // Pool owned by: Redroot owner
             // Pool managed by: Redroot owner or component calls
             let pool_owner = OwnerRole::Fixed(rule!(require(self.owner_badge_address)));
             let pool_manager = rule!(require(global_caller(self.component_address)) || require(self.owner_badge_address));
-            let pool = Pool::create(pool_owner, pool_manager, asset.address);
+            let pool = Pool::create(pool_owner, pool_manager, address);
 
             // ! Cannot automatically set proof metadata because of "Moving restricted proof downstream"
             // Set pool unit metadata
@@ -272,16 +298,20 @@ mod redroot {
             // });
             // info!("Post-auth");
 
+            // Create FungibleAsset
+            let asset = Asset::new(address, pool);
+            info!("[add_asset] FungibleAsset: {:#?}", asset);
+
             // Fire AddAssetEvent
             Runtime::emit_event(AddAssetEvent {
-                asset: asset.address,
-                pool_address: pool.address,
-                pool_unit_address: pool.pool_unit_global,
+                asset: address,
+                pool_address: asset.pool.address,
+                pool_unit_address: asset.pool.pool_unit_global,
             });
 
-            self.pools.insert(asset.address, pool);
-            self.assets.insert(asset.address, asset.clone());
-            self.track_asset(asset.address);
+            // self.pools.insert(address, pool);
+            self.assets.insert(address, asset.clone());
+            self.track_asset(address);
 
             asset
         }
@@ -293,7 +323,8 @@ mod redroot {
             // Sanity checks
             assert!(!self.validate_fungible(asset), "Cannot add asset {:?}, as it is already added and tracked", asset);
             assert!(asset.is_fungible(), "Provided asset must be fungible.");
-            assert!(self.pools.get(&asset).is_some(), "No pool for asset {:?}, run add_asset first", asset);
+            assert!(self.assets.get(&asset).is_some(), "No asset entry for {:?}, run add_asset first", asset);
+            // assert!(self.pools.get(&asset).is_some(), "No pool for asset {:?}, run add_asset first", asset);
 
             // Append the asset into the asset list
             self.asset_list.append(asset);
@@ -319,7 +350,17 @@ mod redroot {
             }
         }
 
-        // ! ------------ Temporary Methods ------------ /
+        //. ---------- Price Stream Management --------- /
+        pub fn link_price_stream(&mut self, price_stream: Global<AnyComponent>) {
+            self.price_stream = Some(price_stream);
+        }
+
+        pub fn unlink_price_stream(&mut self) {
+            self.price_stream = None;
+        }
+
+        //. -------------- Utility Methods ------------- /
+        // ! Testing Methods
         pub fn log_asset_list(&self) {
             info!("[log_asset_list] Asset list: {:#?}", self.asset_list.to_vec());
         }
@@ -335,18 +376,6 @@ mod redroot {
             }
         }
 
-        pub fn log_pools(&self) {
-            for (i, address, _) in self.asset_list.iter() {
-                if let Some(pool) = self.pools.get(&address) {
-                    info!("[log_pools] Data for pool {:?}:", address);
-                    info!("[log_pools] Vault contains: {}", pool.component.get_vault_amount());
-                } else {
-                    info!("[log_pools] Pool with address {:?} not found", address);
-                }
-            }
-        }
-
-        //. -------------- Utility Methods ------------- */
         /// Checks that the given asset is generally valid, is in the asset_list, and has a corresponding vault
         fn validate_fungible(&self, address: ResourceAddress) -> bool {
             if !address.is_fungible() {
@@ -355,8 +384,8 @@ mod redroot {
             }
 
             // Check that a vault exists for the given address
-            if self.pools.get(&address).is_none() {
-                info!("[validate_fungible] INVALID: No pool found for asset {:?}", address);
+            if self.assets.get(&address).is_none() {
+                info!("[validate_fungible] INVALID: No asset entry found for {:?}", address);
                 return false;
             }
 
