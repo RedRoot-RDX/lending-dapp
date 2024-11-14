@@ -48,9 +48,9 @@ impl Pool {
     pub fn set_pool_unit_metadata(&self, name: String, symbol: String, owner_proof: Proof) {
         let pool_unit_rm: ResourceManager = ResourceManager::from_address(self.pool_unit.clone());
 
-        let meta_name = format!("Redroot {name} Pool Unit").to_string();
+        let meta_name = format!("Lattic3 {name} Pool Unit").to_string();
         let meta_symbol = format!("$rrt{symbol}").to_string();
-        let meta_description = format!("Redroot pool unit for the {symbol} pool").to_string();
+        let meta_description = format!("Lattic3 pool unit for the {symbol} pool").to_string();
 
         owner_proof.authorize(|| {
             pool_unit_rm.set_metadata("name", meta_name);

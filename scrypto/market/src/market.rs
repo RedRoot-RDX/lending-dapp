@@ -35,9 +35,7 @@ struct UntrackAssetEvent {
 #[events(InstantiseEvent, AddAssetEvent, TrackAssetEvent, UntrackAssetEvent)]
 // Types registered to reduce fees; include those used for KV stores, structs, NFTs, etc.
 #[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, AssetEntry, TPool, Pool, Position)]
-mod redroot {
-    use crate::position;
-
+mod lattic3 {
     // Method roles
     enable_method_auth! {
         roles {
@@ -72,13 +70,13 @@ mod redroot {
 
     // Importing price stream blueprint
     extern_blueprint! {
-        "package_sim1pkwaf2l9zkmake5h924229n44wp5pgckmpn0lvtucwers56awywems",
+        "package_tdx_2_1p5qgm94g3qwvl82lyptxj05r7qyes6v982hmvhm3n9f5ffhnysl7xu",
         PriceStream {
             fn get_price(&self, asset: ResourceAddress) -> Option<Decimal>;
         }
     }
 
-    struct Redroot {
+    struct Lattic3 {
         component_address: ComponentAddress,
 
         owner_badge_address: ResourceAddress,
@@ -95,15 +93,15 @@ mod redroot {
         open_positions: u64,
     }
 
-    impl Redroot {
+    impl Lattic3 {
         pub fn instantiate(
             dapp_definition_address: ComponentAddress,
             // ! -------- TESTING --------
             test_assets: Vec<ResourceAddress>,
             // ! -/-/-/-/-/-/-/-/-/-/-/-/-
-        ) -> (Global<Redroot>, Bucket) {
+        ) -> (Global<Lattic3>, Bucket) {
             // Reserve address
-            let (address_reservation, component_address) = Runtime::allocate_component_address(Redroot::blueprint_id());
+            let (address_reservation, component_address) = Runtime::allocate_component_address(Lattic3::blueprint_id());
 
             //. Badges and rules
             // Component
@@ -113,8 +111,8 @@ mod redroot {
             let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata(metadata! {init {
-                    "name"        => "Redroot Owner Badge", locked;
-                    "description" => "Badge representing the owner of the Redroot lending platform", locked;
+                    "name"        => "Lattic3 Owner Badge", locked;
+                    "description" => "Badge representing the owner of the Lattic3 lending platform", locked;
                 }})
                 .mint_initial_supply(1)
                 .into();
@@ -147,8 +145,8 @@ mod redroot {
             // Position badge
             let position_manager: ResourceManager = ResourceBuilder::new_integer_non_fungible::<Position>(owner_role.clone())
                 .metadata(metadata! {init {
-                    "name"        => "Redroot Seed", locked;
-                    "description" => "Badge representing a position in the Redroot lending platform", locked;
+                    "name"        => "Lattic3 Seed", locked;
+                    "description" => "Badge representing a position in the Lattic3 lending platform", locked;
                 }})
                 .non_fungible_data_update_roles(non_fungible_data_update_roles! {
                     non_fungible_data_updater         =>component_access_rule.clone();
@@ -166,7 +164,7 @@ mod redroot {
 
             //. Internal data setup
             // Initialise component data
-            let mut component_data: Redroot = Self {
+            let mut component_data: Lattic3 = Self {
                 component_address,
                 owner_badge_address: owner_badge.resource_address(),
                 admin_manager,
@@ -190,14 +188,14 @@ mod redroot {
             // ! -/-/-/-/-/-/-/-/-/-/-/-/-
 
             for address in assets {
-                let asset = Redroot::add_asset(&mut component_data, address);
+                let asset = Lattic3::add_asset(&mut component_data, address);
 
                 // ! Set pool unit metadata; has to be done manually for assets not in the instantisation asset list
                 let pool_unit_rm: ResourceManager = ResourceManager::from_address(asset.pool.pool_unit.clone());
 
-                let meta_name = format!("Redroot {} Pool Unit", asset.name).to_string();
+                let meta_name = format!("Lattic3 {} Pool Unit", asset.name).to_string();
                 let meta_symbol = format!("$rrt{}", asset.symbol).to_string();
-                let meta_description = format!("Redroot pool unit for the {} pool", asset.symbol).to_string();
+                let meta_description = format!("Lattic3 pool unit for the {} pool", asset.symbol).to_string();
 
                 info!("Pre-auth");
                 owner_proof.authorize(|| {
@@ -220,7 +218,7 @@ mod redroot {
                     metadata_locker_updater => rule!(deny_all);
                 },
                 init {
-                    "name"            => "Redroot Lending Platform", locked;
+                    "name"            => "Lattic3 Lending Platform", locked;
                     "description"     => "Multi-collateralized lending platform", locked;
                     "dapp_definition" => dapp_definition_address, updatable;
                 }
@@ -232,7 +230,7 @@ mod redroot {
             };
 
             // Instantisation
-            let component: Global<Redroot> = component_data
+            let component: Global<Lattic3> = component_data
                 .instantiate()
                 .prepare_to_globalize(owner_role)
                 .roles(component_roles)
@@ -574,8 +572,8 @@ mod redroot {
             // assert!(self.pools.get(&address).is_none(), "Asset already has a pool");
             assert!(!self.validate_fungible(address), "Cannot add asset {:?}, as it is already added and tracked", address);
 
-            // Pool owned by: Redroot owner
-            // Pool managed by: Redroot owner or component calls
+            // Pool owned by: Lattic3 owner
+            // Pool managed by: Lattic3 owner or component calls
             let pool_owner = OwnerRole::Fixed(rule!(require(self.owner_badge_address)));
             let pool_manager = rule!(require(global_caller(self.component_address)) || require(self.owner_badge_address));
             let pool = Pool::create(pool_owner, pool_manager, address);
@@ -584,9 +582,9 @@ mod redroot {
             // Set pool unit metadata
             // let pool_unit_rm: ResourceManager = ResourceManager::from_address(pool.pool_unit.clone());
 
-            // let meta_name = format!("Redroot {} Pool Unit", asset.name).to_string();
+            // let meta_name = format!("Lattic3 {} Pool Unit", asset.name).to_string();
             // let meta_symbol = format!("$rrt{}", asset.symbol).to_string();
-            // let meta_description = format!("Redroot pool unit for the {} pool", asset.symbol).to_string();
+            // let meta_description = format!("Lattic3 pool unit for the {} pool", asset.symbol).to_string();
 
             // info!("Pre-auth");
             // LocalAuthZone::push(owner_badge.clone());

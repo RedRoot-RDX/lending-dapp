@@ -5,7 +5,7 @@ CALL_METHOD
 
 CALL_FUNCTION
     Address("${market_package}")
-    "Redroot"
+    "Lattic3"
     "instantiate"
     Address("${main_account}")
     Array<Address>();
