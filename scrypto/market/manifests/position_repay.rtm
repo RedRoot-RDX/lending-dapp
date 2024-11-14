@@ -14,24 +14,24 @@ POP_FROM_AUTH_ZONE
     Proof("market_position_proof");
 # --------
 
-# Get XRD Bucket
+# Get $rrtXRD Bucket
 CALL_METHOD
     Address("${user_account}")
     "withdraw"
     Address("${xrd}")
-    Decimal("100");
+    Decimal("50");
 
 TAKE_FROM_WORKTOP
     Address("${xrd}")
-    Decimal("100")
-    Bucket("bucket_${xrd}");
+    Decimal("50")
+    Bucket("bucket_XRD");
 # --------
 
 CALL_METHOD
     Address("${market_component}")
-    "position_supply"
+    "position_repay"
     Proof("market_position_proof")
-    Array<Bucket>(Bucket("bucket_${xrd}"));
+    Bucket("bucket_XRD");
 
 CALL_METHOD
     Address("${user_account}")

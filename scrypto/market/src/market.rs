@@ -358,18 +358,94 @@ mod redroot {
             borrowed
         }
 
-        pub fn position_withdraw(&mut self, asset: Bucket) {
+        pub fn position_withdraw(&mut self, position_proof: NonFungibleProof, pool_units: Bucket) -> Bucket {
             // Sanity checks
-            assert!(self.price_stream_address.is_some(), "Price stream is not linked");
+            assert!(!pool_units.is_empty(), "Bucket for {:?} is empty", pool_units.resource_address());
+            assert!(
+                self.pool_unit_to_address.get(&pool_units.resource_address()).is_some(),
+                "Address not found for pool unit {:?}",
+                pool_units.resource_address()
+            );
 
-            todo!()
+            // Fetch NFT data
+            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
+            let local_id = nft.local_id();
+            let position: Position = nft.data();
+
+            info!("[position_borrow] Position: {:#?}", position);
+
+            // Get pool unit's source asset
+            let address = *self
+                .pool_unit_to_address
+                .get(&pool_units.resource_address())
+                .expect(format!("Cannot get address for pool unit {:?}", pool_units.resource_address()).as_str());
+
+            // Execute withdraw
+            let withdrawn = self.redeem(pool_units);
+
+            // Recalculate supply
+            let mut new_supply = position.supply;
+            new_supply.insert(
+                // Overwrite current entry with: new = existing - withdrawn
+                address,
+                new_supply
+                    .get(&address)
+                    .expect("Withdrawn resource not found in existing supply")
+                    .checked_sub(withdrawn.amount())
+                    .unwrap(),
+            );
+
+            let health = self.calculate_position_health(new_supply.clone(), position.debt);
+            assert!(health >= dec!(1.0), "Position health will be below 1.0. Reverting operation");
+
+            // Update NFT data
+            self.position_manager.update_non_fungible_data(local_id, "supply", new_supply);
+
+            // Return withdrawn resources
+            withdrawn
         }
 
-        pub fn position_repay(&mut self, asset: Bucket) {
+        pub fn position_repay(&mut self, position_proof: NonFungibleProof, mut bucket: Bucket) -> Bucket {
             // Sanity checks
-            assert!(self.price_stream_address.is_some(), "Price stream is not linked");
+            assert!(!bucket.is_empty(), "Bucket for {:?} is empty", bucket.resource_address());
 
-            todo!()
+            // Fetch NFT data
+            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
+            let local_id = nft.local_id();
+            let position: Position = nft.data();
+            info!("[position_borrow] Position: {:#?}", position);
+
+            // Ensure that the provided asset is borrowed
+            assert!(position.debt.contains_key(&bucket.resource_address()), "Asset {:?} not borrowed", bucket.resource_address());
+
+            // Get repayment
+            let borrowed = *position
+                .debt
+                .get(&bucket.resource_address())
+                .expect(format!("Cannot get borrowed amount for asset {:?}", bucket.resource_address()).as_str());
+            let amount = if bucket.amount() > borrowed { borrowed } else { bucket.amount() };
+
+            let mut repayment = Bucket::new(bucket.resource_address());
+            repayment.put(bucket.take(amount));
+
+            // Dump repayment into pool
+            self.hard_deposit(repayment);
+
+            // Update NFT data
+            let mut new_debt = position.debt;
+            let borrowed_amount = borrowed.checked_sub(amount).unwrap();
+
+            // Update KV if the new borrowed amount > 0, else delete the entry
+            if borrowed_amount > dec!(0.0) {
+                new_debt.insert(bucket.resource_address(), borrowed_amount);
+            } else {
+                new_debt.remove(&bucket.resource_address());
+            }
+
+            self.position_manager.update_non_fungible_data(local_id, "debt", new_debt);
+
+            // Return change
+            bucket
         }
 
         // Internal position methods

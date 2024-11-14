@@ -4,13 +4,13 @@
 #? Array of all commands that should be registered. 'exit' is included automatically
 #? Registered commands need to follow the convention cmd_<name>, where <name> is an element in the array
 COMMANDS=(
-    # Batch
-    "redeploy" "reset" "deploy"
+    # -------- Batch
+    "init" "reset" "deploy" "init_position"
     # -------- Market
     # Deployment
     "publish_market" "instantise_market" "link_price_stream"
     # Position management
-    "open_position" "position_supply" "position_borrow"
+    "open_position" "position_supply" "position_borrow" "position_withdraw" "position_repay"
     # Internal position operations
     "get_position_health"
     # -------- Price stream
@@ -18,7 +18,7 @@ COMMANDS=(
 )
 
 #. --------------- Batch Commands --------------- #
-cmd_redeploy() {
+cmd_init() {
     . ./resim-helper.sh reset
 
     . ./resim-helper.sh deploy
@@ -44,15 +44,15 @@ cmd_reset() {
     export xrd=$(resim show $main_account | grep XRD | grep -o "resource_.\S*" | sed -e "s/://")
 
     heading "Assigned env variables"
-    tbl_out "main_account:        " "$main_account"
-    tbl_out "main privatekey:     " "$main_privatekey"
-    tbl_out "main account_badge:  " "$main_account_badge"
+    tbl_out "main_account:      " "$main_account"
+    tbl_out "main privatekey:   " "$main_privatekey"
+    tbl_out "main account_badge:" "$main_account_badge"
     printf "\n"
-    tbl_out "user_account:        " "$user_account"
-    tbl_out "user privatekey:     " "$user_privatekey"
-    tbl_out "user account_badge:  " "$user_account_badge"
+    tbl_out "user_account:      " "$user_account"
+    tbl_out "user privatekey:   " "$user_privatekey"
+    tbl_out "user account_badge:" "$user_account_badge"
     printf "\n"
-    tbl_out "xrd:                 " "$xrd"
+    tbl_out "xrd:               " "$xrd"
 }
 
 cmd_deploy() {
@@ -75,6 +75,14 @@ cmd_deploy() {
 
     heading "Linking price stream to market"
     . ./resim-helper.sh link_price_stream
+}
+
+cmd_init_position() {
+    . ./resim-helper.sh open_position
+
+    . ./resim-helper.sh position_supply
+
+    . ./resim-helper.sh position_borrow
 }
 
 #. --------------- Market Commands -------------- #
@@ -117,11 +125,13 @@ cmd_instantise_market() {
     # sed -n '[line],[line]p' specifies the line number of the resource address; both of the [line] parameters should be the same
     export market_owner_badge=$(printf "$resources" | sed -n '1,1p' | grep -o "resource_.*")
     export market_position_badge=$(printf "$resources" | sed -n '3,3p' | grep -o "resource_.*")
+    export xrd_pool_unit=$(printf "$resources" | sed -n '4,4p' | grep -o "resource_.*")
 
     heading "Assigned env variables"
-    tbl_out "market component:  " "$market_component"
-    tbl_out "market owner badge:" "$market_owner_badge"
+    tbl_out "market component:     " "$market_component"
+    tbl_out "market owner badge:   " "$market_owner_badge"
     tbl_out "market position badge:" "$market_position_badge"
+    tbl_out "xrd pool unit:        " "$xrd_pool_unit"
 }
 
 # Position management
@@ -169,6 +179,38 @@ cmd_position_borrow() {
 
     heading "Running transaction manifest"
     resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/position_borrow.rtm")
+
+    use_account_main
+}
+
+cmd_position_withdraw() {
+    # Validation
+    is_pkg_deployed
+
+    if [[ $PKG_DEPLOYED = "FALSE" ]]; then
+        return 0
+    fi
+
+    use_account_user
+
+    heading "Running transaction manifest"
+    resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/position_withdraw.rtm")
+
+    use_account_main
+}
+
+cmd_position_repay() {
+    # Validation
+    is_pkg_deployed
+
+    if [[ $PKG_DEPLOYED = "FALSE" ]]; then
+        return 0
+    fi
+
+    use_account_user
+
+    heading "Running transaction manifest"
+    resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/position_repay.rtm")
 
     use_account_main
 }
