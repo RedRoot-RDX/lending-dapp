@@ -111,6 +111,10 @@ cmd_instantise_market() {
         return 0
     fi
 
+    heading "Creating market owner badge"
+    create_owner_badge_rtm=$(resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/create_owner_badge.rtm"))
+    export market_owner_badge=$(printf "$create_owner_badge_rtm" | grep "Resource: " | sed -n '1,1p' | grep -o "resource_.*")
+
     heading "Running transaction manifest"
     instantise_rtm=$(resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/$INSTANTISE_MARKET_RTM"))
     # printf "$instantise_rtm"
@@ -123,9 +127,8 @@ cmd_instantise_market() {
     resources=$(printf "$instantise_rtm" | grep "Resource: ") # Gets all the outputted resource addresses
     printf "$resources" | grep -o "Resource:.*"
     # sed -n '[line],[line]p' specifies the line number of the resource address; both of the [line] parameters should be the same
-    export market_owner_badge=$(printf "$resources" | sed -n '1,1p' | grep -o "resource_.*")
-    export market_position_badge=$(printf "$resources" | sed -n '3,3p' | grep -o "resource_.*")
-    export xrd_pool_unit=$(printf "$resources" | sed -n '4,4p' | grep -o "resource_.*")
+    export market_position_badge=$(printf "$resources" | sed -n '2,2p' | grep -o "resource_.*")
+    export xrd_pool_unit=$(printf "$resources" | sed -n '3,3p' | grep -o "resource_.*")
 
     heading "Assigned env variables"
     tbl_out "market component:     " "$market_component"

@@ -70,7 +70,7 @@ mod lattic3 {
 
     // Importing price stream blueprint
     extern_blueprint! {
-        "package_tdx_2_1p5qgm94g3qwvl82lyptxj05r7qyes6v982hmvhm3n9f5ffhnysl7xu",
+        "package_sim1pkwaf2l9zkmake5h924229n44wp5pgckmpn0lvtucwers56awywems",
         PriceStream {
             fn get_price(&self, asset: ResourceAddress) -> Option<Decimal>;
         }
@@ -96,6 +96,7 @@ mod lattic3 {
     impl Lattic3 {
         pub fn instantiate(
             dapp_definition_address: ComponentAddress,
+            owner_badge: Bucket,
             // ! -------- TESTING --------
             test_assets: Vec<ResourceAddress>,
             // ! -/-/-/-/-/-/-/-/-/-/-/-/-
@@ -108,14 +109,14 @@ mod lattic3 {
             let component_access_rule: AccessRule = rule!(require(global_caller(component_address)));
 
             // Component owner
-            let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
-                .divisibility(DIVISIBILITY_NONE)
-                .metadata(metadata! {init {
-                    "name"        => "Lattic3 Owner Badge", locked;
-                    "description" => "Badge representing the owner of the Lattic3 lending platform", locked;
-                }})
-                .mint_initial_supply(1)
-                .into();
+            // - let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
+            // -     .divisibility(DIVISIBILITY_NONE)
+            // -     .metadata(metadata! {init {
+            // -         "name"        => "Lattic3 Owner Badge", locked;
+            // -         "description" => "Badge representing the owner of the Lattic3 lending platform", locked;
+            // -     }})
+            // -     .mint_initial_supply(1)
+            // -     .into();
             let owner_access_rule: AccessRule = rule!(require(owner_badge.resource_address()));
             let owner_role: OwnerRole = OwnerRole::Fixed(owner_access_rule.clone());
 
@@ -145,11 +146,12 @@ mod lattic3 {
             // Position badge
             let position_manager: ResourceManager = ResourceBuilder::new_integer_non_fungible::<Position>(owner_role.clone())
                 .metadata(metadata! {init {
-                    "name"        => "Lattic3 Seed", locked;
-                    "description" => "Badge representing a position in the Lattic3 lending platform", locked;
+                    "name"            => "Lattic3 Node", locked;
+                    "description"     => "Badge representing a position in the Lattic3", locked;
+                    "dapp_definition" => dapp_definition_address, updatable;
                 }})
                 .non_fungible_data_update_roles(non_fungible_data_update_roles! {
-                    non_fungible_data_updater         =>component_access_rule.clone();
+                    non_fungible_data_updater         => component_access_rule.clone();
                     non_fungible_data_updater_updater => rule!(deny_all);
                 })
                 .mint_roles(mint_roles! {
@@ -194,16 +196,14 @@ mod lattic3 {
                 let pool_unit_rm: ResourceManager = ResourceManager::from_address(asset.pool.pool_unit.clone());
 
                 let meta_name = format!("Lattic3 {} Pool Unit", asset.name).to_string();
-                let meta_symbol = format!("$rrt{}", asset.symbol).to_string();
+                let meta_symbol = format!("$lt3{}", asset.symbol).to_string();
                 let meta_description = format!("Lattic3 pool unit for the {} pool", asset.symbol).to_string();
 
-                info!("Pre-auth");
                 owner_proof.authorize(|| {
                     pool_unit_rm.set_metadata("name", meta_name);
                     pool_unit_rm.set_metadata("symbol", meta_symbol);
                     pool_unit_rm.set_metadata("description", meta_description);
                 });
-                info!("Post-auth");
             }
 
             //. Component
@@ -275,15 +275,15 @@ mod lattic3 {
             (position_badge, pool_units)
         }
 
-        pub fn position_supply(&mut self, position_proof: NonFungibleProof, supply: Vec<Bucket>) -> Vec<Bucket> {
+        pub fn position_supply(&mut self, position_bucket: NonFungibleBucket, supply: Vec<Bucket>) -> (NonFungibleBucket, Vec<Bucket>) {
             // Sanity checks
+            assert_eq!(position_bucket.amount(), dec!(1), "Position NFT must be provided");
+            assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
             assert!(self.validate_buckets(&supply), "Some supplied resource is invalid, check logs");
 
             // Fetch NFT data
-            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
-            let local_id = nft.local_id();
-            let position: Position = nft.data();
-
+            let local_id = position_bucket.non_fungible_local_id();
+            let position: Position = position_bucket.as_non_fungible().non_fungible::<Position>().data();
             info!("[position_supply] Position: {:#?}", position);
 
             // Record supplied resources
@@ -306,24 +306,25 @@ mod lattic3 {
             }
 
             // Update NFT data
-            self.position_manager.update_non_fungible_data(local_id, "supply", new_supply);
+            self.position_manager.update_non_fungible_data(&local_id, "supply", new_supply);
 
-            // Return pool units
-            pool_units
+            // Return
+            (position_bucket, pool_units)
         }
 
-        pub fn position_borrow(&mut self, position_proof: NonFungibleProof, borrow: ValueMap) -> Vec<Bucket> {
+        pub fn position_borrow(&mut self, position_bucket: NonFungibleBucket, borrow: ValueMap) -> (NonFungibleBucket, Vec<Bucket>) {
             // Sanity checks
+            assert_eq!(position_bucket.amount(), dec!(1), "Position NFT must be provided");
+            assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
+
             for (address, amount) in &borrow {
                 assert!(amount > &dec!(0.0), "Borrow amount must be greater than 0");
                 assert!(self.validate_fungible(*address), "Asset with address {:?} is invalid", address);
             }
 
             // Fetch NFT data
-            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
-            let local_id = nft.local_id();
-            let position: Position = nft.data();
-
+            let local_id = position_bucket.non_fungible_local_id();
+            let position: Position = position_bucket.as_non_fungible().non_fungible::<Position>().data();
             info!("[position_borrow] Position: {:#?}", position);
 
             // Record borrowed resources
@@ -350,14 +351,17 @@ mod lattic3 {
             }
 
             // Update NFT data
-            self.position_manager.update_non_fungible_data(local_id, "debt", new_debt);
+            self.position_manager.update_non_fungible_data(&local_id, "debt", new_debt);
 
             // Return borrowed resources
-            borrowed
+            (position_bucket, borrowed)
         }
 
-        pub fn position_withdraw(&mut self, position_proof: NonFungibleProof, pool_units: Bucket) -> Bucket {
+        pub fn position_withdraw(&mut self, position_bucket: NonFungibleBucket, pool_units: Bucket) -> (Option<NonFungibleBucket>, Bucket) {
             // Sanity checks
+            assert_eq!(position_bucket.amount(), dec!(1), "Position NFT must be provided");
+            assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
+
             assert!(!pool_units.is_empty(), "Bucket for {:?} is empty", pool_units.resource_address());
             assert!(
                 self.pool_unit_to_address.get(&pool_units.resource_address()).is_some(),
@@ -366,11 +370,9 @@ mod lattic3 {
             );
 
             // Fetch NFT data
-            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
-            let local_id = nft.local_id();
-            let position: Position = nft.data();
-
-            info!("[position_borrow] Position: {:#?}", position);
+            let local_id = position_bucket.non_fungible_local_id();
+            let position: Position = position_bucket.as_non_fungible().non_fungible::<Position>().data();
+            info!("[position_withdraw] Position: {:#?}", position);
 
             // Get pool unit's source asset
             let address = *self
@@ -382,68 +384,84 @@ mod lattic3 {
             let withdrawn = self.redeem(pool_units);
 
             // Recalculate supply
-            let mut new_supply = position.supply;
-            new_supply.insert(
-                // Overwrite current entry with: new = existing - withdrawn
-                address,
-                new_supply
-                    .get(&address)
-                    .expect("Withdrawn resource not found in existing supply")
-                    .checked_sub(withdrawn.amount())
-                    .unwrap(),
-            );
+            let supplied = *position.supply.get(&address).expect(format!("Cannot get supplied amount for asset {:?}", address).as_str());
+            let supply_amount = supplied.checked_sub(withdrawn.amount()).unwrap();
+            info!("[position_withdraw] Supplied: {}", supplied);
+            info!("[position_withdraw] Supply amount: {}", supply_amount);
 
-            let health = self.calculate_position_health(new_supply.clone(), position.debt);
+            let mut new_supply = position.supply;
+            if supply_amount > dec!(0.0) {
+                new_supply.insert(address, supply_amount);
+            } else {
+                new_supply.remove(&address);
+            }
+
+            // Ensure that operation won't put position health below 1.0
+            let health = self.calculate_position_health(new_supply.clone(), position.debt.clone());
             assert!(health >= dec!(1.0), "Position health will be below 1.0. Reverting operation");
 
-            // Update NFT data
-            self.position_manager.update_non_fungible_data(local_id, "supply", new_supply);
+            // Update NFT data or burn if empty
+            if new_supply.is_empty() && position.debt.is_empty() {
+                info!("[position_withdraw] Position is empty. Burning NFT");
+                // self.position_manager.burn(position_bucket);
+                position_bucket.burn();
+                info!("[position_withdraw] a");
+                return (None, withdrawn);
+            }
 
-            // Return withdrawn resources
-            withdrawn
+            self.position_manager.update_non_fungible_data(&local_id, "supply", new_supply);
+
+            (Some(position_bucket), withdrawn)
         }
 
-        pub fn position_repay(&mut self, position_proof: NonFungibleProof, mut bucket: Bucket) -> Bucket {
+        pub fn position_repay(&mut self, position_bucket: NonFungibleBucket, mut repayment: Bucket) -> (Option<NonFungibleBucket>, Bucket) {
             // Sanity checks
-            assert!(!bucket.is_empty(), "Bucket for {:?} is empty", bucket.resource_address());
+            assert_eq!(position_bucket.amount(), dec!(1), "Position NFT must be provided");
+            assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
+
+            assert!(!repayment.is_empty(), "Bucket for {:?} is empty", repayment.resource_address());
 
             // Fetch NFT data
-            let nft = position_proof.check_with_message(self.position_manager.address(), "Position check failed").non_fungible::<Position>();
-            let local_id = nft.local_id();
-            let position: Position = nft.data();
-            info!("[position_borrow] Position: {:#?}", position);
+            let local_id = position_bucket.non_fungible_local_id();
+            let position: Position = position_bucket.as_non_fungible().non_fungible::<Position>().data();
+            info!("[position_repay] Position: {:#?}", position);
 
             // Ensure that the provided asset is borrowed
-            assert!(position.debt.contains_key(&bucket.resource_address()), "Asset {:?} not borrowed", bucket.resource_address());
+            assert!(position.debt.contains_key(&repayment.resource_address()), "Asset {:?} not borrowed", repayment.resource_address());
 
             // Get repayment
             let borrowed = *position
                 .debt
-                .get(&bucket.resource_address())
-                .expect(format!("Cannot get borrowed amount for asset {:?}", bucket.resource_address()).as_str());
-            let amount = if bucket.amount() > borrowed { borrowed } else { bucket.amount() };
+                .get(&repayment.resource_address())
+                .expect(format!("Cannot get borrowed amount for asset {:?}", repayment.resource_address()).as_str());
+            let repay_amount = if repayment.amount() > borrowed { borrowed } else { repayment.amount() };
 
-            let mut repayment = Bucket::new(bucket.resource_address());
-            repayment.put(bucket.take(amount));
+            let mut bucket = Bucket::new(repayment.resource_address());
+            bucket.put(repayment.take(repay_amount));
 
             // Dump repayment into pool
-            self.hard_deposit(repayment);
+            self.hard_deposit(bucket);
 
             // Update NFT data
             let mut new_debt = position.debt;
-            let borrowed_amount = borrowed.checked_sub(amount).unwrap();
+            let borrowed_amount = borrowed.checked_sub(repay_amount).unwrap();
 
             // Update KV if the new borrowed amount > 0, else delete the entry
             if borrowed_amount > dec!(0.0) {
-                new_debt.insert(bucket.resource_address(), borrowed_amount);
+                new_debt.insert(repayment.resource_address(), borrowed_amount);
             } else {
-                new_debt.remove(&bucket.resource_address());
+                new_debt.remove(&repayment.resource_address());
             }
 
-            self.position_manager.update_non_fungible_data(local_id, "debt", new_debt);
+            // Update NFT data or burn if empty
+            if position.supply.is_empty() && new_debt.is_empty() {
+                self.position_manager.burn(position_bucket);
+                return (None, repayment);
+            }
 
-            // Return change
-            bucket
+            self.position_manager.update_non_fungible_data(&local_id, "debt", new_debt);
+
+            (Some(position_bucket), repayment)
         }
 
         // Internal position methods
