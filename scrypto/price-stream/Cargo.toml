@@ -1,11 +1,10 @@
 [package]
-name = "redroot"
+name = "redroot-price-stream"
 version = "1.0.0"
 edition = "2021"
 
 [dependencies]
 scrypto = { version = "1.2.0" }
-scrypto_avltree = { git = "https://github.com/ociswap/scrypto-avltree", tag = "v1.2.0" }
 
 [dev-dependencies]
 scrypto-test = { version = "1.2.0" }
@@ -20,7 +19,6 @@ overflow-checks = true # Panic in the case of an overflow.
 
 [features]
 default = []
-test = []
 
 [lib]
 crate-type = ["cdylib", "lib"]

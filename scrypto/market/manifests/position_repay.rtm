@@ -1,0 +1,39 @@
+CALL_METHOD
+    Address("component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh")
+    "lock_fee"
+    Decimal("5000");
+
+# Get position badge proof
+CALL_METHOD
+  Address("${user_account}")
+  "create_proof_of_non_fungibles"
+  Address("${market_position_badge}")
+  Array<NonFungibleLocalId>(NonFungibleLocalId("#1#"));
+
+POP_FROM_AUTH_ZONE
+    Proof("market_position_proof");
+# --------
+
+# Get $rrtXRD Bucket
+CALL_METHOD
+    Address("${user_account}")
+    "withdraw"
+    Address("${xrd}")
+    Decimal("50");
+
+TAKE_FROM_WORKTOP
+    Address("${xrd}")
+    Decimal("50")
+    Bucket("bucket_XRD");
+# --------
+
+CALL_METHOD
+    Address("${market_component}")
+    "position_repay"
+    Proof("market_position_proof")
+    Bucket("bucket_XRD");
+
+CALL_METHOD
+    Address("${user_account}")
+    "deposit_batch"
+    Expression("ENTIRE_WORKTOP");
