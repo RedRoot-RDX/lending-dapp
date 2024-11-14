@@ -1,4 +1,3 @@
-"use client";
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ interface Asset {
   apy: number;
 }
 
-interface SupplyDialogProps {
+interface BorrowDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -63,57 +62,53 @@ const columns: ColumnDef<Asset>[] = [
     accessorKey: 'apy',
     header: () => <div className="text-right">APY</div>,
     cell: ({ row }) => (
-      <div className="text-right text-green-500 font-medium">
+      <div className="text-right text-red-500 font-medium">
         {Number(row.getValue('apy')).toFixed(2)}%
       </div>
     ),
   },
 ];
 
-const SupplyDialog: React.FC<SupplyDialogProps> = ({
+const BorrowDialog: React.FC<BorrowDialogProps> = ({
   isOpen,
   onClose,
   onConfirm,
   selectedAssets,
 }) => {
-
-  // Filter out assets with non-zero amounts
-  const assetsToSupply = React.useMemo(
+  const assetsToBorrow = React.useMemo(
     () => selectedAssets.filter((asset) => asset.select_native > 0),
     [selectedAssets]
   );
 
-  // Calculate totals
-  const totalSupply = React.useMemo(
-    () => assetsToSupply.reduce((sum, asset) => sum + asset.select_native, 0),
-    [assetsToSupply]
+  const totalBorrow = React.useMemo(
+    () => assetsToBorrow.reduce((sum, asset) => sum + asset.select_native, 0),
+    [assetsToBorrow]
   );
 
   const table = useReactTable({
-    data: assetsToSupply,
+    data: assetsToBorrow,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
-
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] p-6">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Preview Supply</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">Preview Borrow</DialogTitle>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-sm text-gray-500">Total Supply</div>
+              <div className="text-sm text-gray-500">Total Borrow</div>
               <div className="text-xl font-semibold">
-                ${totalSupply.toFixed(2)}
+                ${totalBorrow.toFixed(2)}
               </div>
             </div>
             <div className="flex flex-col items-end">
-              <div className="text-sm text-gray-500">Total Health Factor</div>
+              <div className="text-sm text-gray-500">Health Factor</div>
               <div className="flex items-center gap-2">
-                <div className="text-red-500 font-semibold">1.0</div>
-                <ArrowRight className="w-4 h-4" />
                 <div className="text-green-500 font-semibold">2.0</div>
+                <ArrowRight className="w-4 h-4" />
+                <div className="text-red-500 font-semibold">1.5</div>
               </div>
             </div>
           </div>
@@ -163,9 +158,9 @@ const SupplyDialog: React.FC<SupplyDialogProps> = ({
           <Button
             onClick={onConfirm}
             className="w-full bg-black text-white hover:bg-gray-800"
-            disabled={assetsToSupply.length === 0}
+            disabled={assetsToBorrow.length === 0}
           >
-            Confirm Supply
+            Confirm Borrow
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -173,4 +168,4 @@ const SupplyDialog: React.FC<SupplyDialogProps> = ({
   );
 };
 
-export default SupplyDialog;
+export default BorrowDialog; 

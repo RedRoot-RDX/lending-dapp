@@ -6,7 +6,8 @@ export interface Asset {
   wallet_balance: number;
   select_native: number;
   apy: number;
-  type?: "supply" | "borrow";
+  type?: 'supply' | 'borrow';
+  available?: number;
 }
 
 export interface AssetConfig {
@@ -24,25 +25,25 @@ export const assetConfigs: Record<AssetName, AssetConfig> = {
     apy: 10.3,
   },
   xwBTC: {
-    address: "resource_usdt",
+    address: "resource_xwbtc",
     label: "xwBTC",
     icon: "https://assets.instabridge.io/tokens/icons/xwBTC.png",
     apy: 5.5,
   },
   FLOOP: {
-    address: "resource_usdc",
+    address: "resource_floop",
     label: "FLOOP",
     icon: "https://assets.caviarnine.com/tokens/floop_babylon.png",
     apy: 5.2,
   },
   xUSDC: {
-    address: "resource_dai",
+    address: "resource_xusdc",
     label: "xUSDC",
     icon: "https://assets.instabridge.io/tokens/icons/xUSDC.png",
     apy: 4.8,
   },
   EARLY: {
-    address: "resource_hug",
+    address: "resource_early",
     label: "EARLY",
     icon: "https://arweave.net/uXCQ9YVGkEijn7PS2wdkXqwkU_YrdgpNtQPH2Y1-Qcs",
     apy: 23.1,
@@ -54,25 +55,25 @@ export const assetConfigs: Record<AssetName, AssetConfig> = {
     apy: 23.1,
   },
   DFP2: {
-    address: "resource_hug",
+    address: "resource_dfp2",
     label: "DFP2",
     icon: "https://radix.defiplaza.net/assets/img/babylon/defiplaza-icon.png",
     apy: 23.1,
   },
   xETH: {
-    address: "resource_hug",
+    address: "resource_xeth",
     label: "xETH",
     icon: "https://assets.instabridge.io/tokens/icons/xETH.png",
     apy: 23.1,
   },
   ASTRL: {
-    address: "resource_hug",
+    address: "resource_astrl",
     label: "ASTRL",
     icon: "https://astrolescent.com/assets/img/tokens/astrl.png",
     apy: 23.1,
   },
   CAVIAR: {
-    address: "resource_hug",
+    address: "resource_caviar",
     label: "CAVIAR",
     icon: "https://assets.caviarnine.com/tokens/caviar_babylon.png",
     apy: 23.1,
