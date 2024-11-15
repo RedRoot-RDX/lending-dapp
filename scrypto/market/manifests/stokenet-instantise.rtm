@@ -1,0 +1,24 @@
+CALL_METHOD
+    Address("account_tdx_2_12xfek2nncckfppcslye0vwusaq6qtt6j896w5tcmfh7wy78hjzqc96")
+    "withdraw"
+    Address("resource_tdx_2_1th0yfygydnxm082zukahcuqck36f3sd2qkp9sxcmrevx236hps8wvl")
+    Decimal("1");
+
+TAKE_FROM_WORKTOP
+    Address("resource_tdx_2_1th0yfygydnxm082zukahcuqck36f3sd2qkp9sxcmrevx236hps8wvl")
+    Decimal("1")
+    Bucket("bucket_owner_badge");
+
+CALL_FUNCTION
+    Address("package_tdx_2_1pkx9mjrfwazqzemj8fua7y2maagq0x7gtg52ryn7036kv5hys3r4gq")
+    "Lattic3"
+    "instantiate"
+    Address("account_tdx_2_12xfek2nncckfppcslye0vwusaq6qtt6j896w5tcmfh7wy78hjzqc96")
+    Bucket("bucket_owner_badge")
+    Array<Address>();
+
+CALL_METHOD
+    Address("account_tdx_2_12xfek2nncckfppcslye0vwusaq6qtt6j896w5tcmfh7wy78hjzqc96")
+    "try_deposit_batch_or_refund"
+    Expression("ENTIRE_WORKTOP")
+    Enum<0u8>();
