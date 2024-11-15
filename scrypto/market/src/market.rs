@@ -1,38 +1,28 @@
 /* ------------------ Imports ----------------- */
 // Usages
 use crate::asset::{AssetEntry, ADDRESSES};
+use crate::events::*;
 use crate::pool::{Pool, TPool};
 use crate::position::Position;
 use crate::utils::{LazyVec, ValueMap};
 use scrypto::prelude::*;
 
-/* ------------------ Events ------------------ */
-#[derive(ScryptoSbor, ScryptoEvent)]
-struct InstantiseEvent {
-    component_address: ComponentAddress,
-    asset_list: Vec<ResourceAddress>,
-}
-
-#[derive(ScryptoSbor, ScryptoEvent)]
-struct AddAssetEvent {
-    asset: ResourceAddress,
-    pool_address: ComponentAddress,
-    pool_unit_address: GlobalAddress,
-}
-
-#[derive(ScryptoSbor, ScryptoEvent)]
-struct TrackAssetEvent {
-    asset: ResourceAddress,
-}
-
-#[derive(ScryptoSbor, ScryptoEvent)]
-struct UntrackAssetEvent {
-    asset: ResourceAddress,
-}
-
 /* ----------------- Blueprint ---------------- */
 #[blueprint]
-#[events(InstantiseEvent, AddAssetEvent, TrackAssetEvent, UntrackAssetEvent)]
+#[events(
+    InstantiseEvent,
+    // Position management
+    OpenPositionEvent,
+    PositionSupplyEvent,
+    PositionBorrowEvent,
+    PositionWithdrawEvent,
+    PositionRepayEvent,
+    PositionCloseEvent,
+    // Asset management
+    AddAssetEvent,
+    TrackAssetEvent,
+    UntrackAssetEvent
+)]
 // Types registered to reduce fees; include those used for KV stores, structs, NFTs, etc.
 #[types(Decimal, ResourceAddress, ComponentAddress, GlobalAddress, AssetEntry, TPool, Pool, Position)]
 mod lattic3 {
@@ -268,10 +258,17 @@ mod lattic3 {
             }
 
             // Mint and return position NFT
-            let position: Position = Position::create(valuemap);
+            let position: Position = Position::create(valuemap.clone());
             self.open_positions += 1;
             let position_badge = self.position_manager.mint_non_fungible(&NonFungibleLocalId::Integer(self.open_positions.into()), position);
 
+            // Fire open position event
+            Runtime::emit_event(OpenPositionEvent {
+                position_id: NonFungibleLocalId::Integer(self.open_positions.into()),
+                supply: valuemap,
+            });
+
+            // Return
             (position_badge, pool_units)
         }
 
@@ -287,7 +284,8 @@ mod lattic3 {
             info!("[position_supply] Position: {:#?}", position);
 
             // Record supplied resources
-            let mut new_supply = self.buckets_to_value_map(&supply);
+            let provided = self.buckets_to_value_map(&supply);
+            let mut new_supply = provided.clone();
             for (address, amount) in position.supply {
                 if let Some(existing) = new_supply.get(&address) {
                     new_supply.insert(address, existing.checked_add(amount).unwrap());
@@ -306,7 +304,15 @@ mod lattic3 {
             }
 
             // Update NFT data
-            self.position_manager.update_non_fungible_data(&local_id, "supply", new_supply);
+            self.position_manager.update_non_fungible_data(&local_id, "supply", new_supply.clone());
+
+            // Fire position supply event
+            Runtime::emit_event(PositionSupplyEvent {
+                position_id: local_id,
+                provided,
+                supply: new_supply,
+                pool_units: self.buckets_to_value_map(&pool_units),
+            });
 
             // Return
             (position_bucket, pool_units)
@@ -343,15 +349,18 @@ mod lattic3 {
 
             // Get resources from pools
             let mut borrowed: Vec<Bucket> = Vec::new();
-            for (address, amount) in borrow {
+            for (address, amount) in &borrow {
                 // let mut asset = self.assets.get_mut(&bucket.resource_address()).expect("Cannot get asset entry");
-                let borrow = self.hard_withdraw(address, amount);
+                let borrow = self.hard_withdraw(*address, *amount);
 
                 borrowed.push(borrow);
             }
 
             // Update NFT data
-            self.position_manager.update_non_fungible_data(&local_id, "debt", new_debt);
+            self.position_manager.update_non_fungible_data(&local_id, "debt", new_debt.clone());
+
+            // Fire position borrow event
+            Runtime::emit_event(PositionBorrowEvent { position_id: local_id, requested: borrow, debt: new_debt });
 
             // Return borrowed resources
             (position_bucket, borrowed)
@@ -362,12 +371,10 @@ mod lattic3 {
             assert_eq!(position_bucket.amount(), dec!(1), "Position NFT must be provided");
             assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
 
-            assert!(!pool_units.is_empty(), "Bucket for {:?} is empty", pool_units.resource_address());
-            assert!(
-                self.pool_unit_to_address.get(&pool_units.resource_address()).is_some(),
-                "Address not found for pool unit {:?}",
-                pool_units.resource_address()
-            );
+            let pool_unit_address = pool_units.resource_address();
+            let provided: Decimal = pool_units.amount();
+            assert!(!pool_units.is_empty(), "Bucket for {:?} is empty", pool_unit_address);
+            assert!(self.pool_unit_to_address.get(&pool_unit_address).is_some(), "Address not found for pool unit {:?}", pool_unit_address);
 
             // Fetch NFT data
             let local_id = position_bucket.non_fungible_local_id();
@@ -377,8 +384,8 @@ mod lattic3 {
             // Get pool unit's source asset
             let address = *self
                 .pool_unit_to_address
-                .get(&pool_units.resource_address())
-                .expect(format!("Cannot get address for pool unit {:?}", pool_units.resource_address()).as_str());
+                .get(&pool_unit_address)
+                .expect(format!("Cannot get address for pool unit {:?}", pool_unit_address).as_str());
 
             // Execute withdraw
             let withdrawn = self.redeem(pool_units);
@@ -400,12 +407,20 @@ mod lattic3 {
             let health = self.calculate_position_health(new_supply.clone(), position.debt.clone());
             assert!(health >= dec!(1.0), "Position health will be below 1.0. Reverting operation");
 
+            // Fire position withdraw event
+            Runtime::emit_event(PositionWithdrawEvent {
+                position_id: local_id.clone(),
+                provided_pool_unit: (pool_unit_address, provided),
+                supply: new_supply.clone(),
+                withdrawn: (address, withdrawn.amount()),
+            });
+
             // Update NFT data or burn if empty
             if new_supply.is_empty() && position.debt.is_empty() {
-                info!("[position_withdraw] Position is empty. Burning NFT");
                 // self.position_manager.burn(position_bucket);
                 position_bucket.burn();
-                info!("[position_withdraw] a");
+
+                Runtime::emit_event(PositionCloseEvent {});
                 return (None, withdrawn);
             }
 
@@ -419,7 +434,9 @@ mod lattic3 {
             assert_eq!(position_bucket.amount(), dec!(1), "Position NFT must be provided");
             assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
 
-            assert!(!repayment.is_empty(), "Bucket for {:?} is empty", repayment.resource_address());
+            let repayment_address = repayment.resource_address();
+            let repaid: Decimal = repayment.amount();
+            assert!(!repayment.is_empty(), "Bucket for {:?} is empty", repayment_address);
 
             // Fetch NFT data
             let local_id = position_bucket.non_fungible_local_id();
@@ -427,16 +444,16 @@ mod lattic3 {
             info!("[position_repay] Position: {:#?}", position);
 
             // Ensure that the provided asset is borrowed
-            assert!(position.debt.contains_key(&repayment.resource_address()), "Asset {:?} not borrowed", repayment.resource_address());
+            assert!(position.debt.contains_key(&repayment_address), "Asset {:?} not borrowed", repayment_address);
 
             // Get repayment
             let borrowed = *position
                 .debt
-                .get(&repayment.resource_address())
-                .expect(format!("Cannot get borrowed amount for asset {:?}", repayment.resource_address()).as_str());
+                .get(&repayment_address)
+                .expect(format!("Cannot get borrowed amount for asset {:?}", repayment_address).as_str());
             let repay_amount = if repayment.amount() > borrowed { borrowed } else { repayment.amount() };
 
-            let mut bucket = Bucket::new(repayment.resource_address());
+            let mut bucket = Bucket::new(repayment_address);
             bucket.put(repayment.take(repay_amount));
 
             // Dump repayment into pool
@@ -448,14 +465,23 @@ mod lattic3 {
 
             // Update KV if the new borrowed amount > 0, else delete the entry
             if borrowed_amount > dec!(0.0) {
-                new_debt.insert(repayment.resource_address(), borrowed_amount);
+                new_debt.insert(repayment_address, borrowed_amount);
             } else {
-                new_debt.remove(&repayment.resource_address());
+                new_debt.remove(&repayment_address);
             }
+
+            // Fire position repay event
+            Runtime::emit_event(PositionRepayEvent {
+                position_id: local_id.clone(),
+                repaid: (repayment_address, repaid),
+                debt: new_debt.clone(),
+            });
 
             // Update NFT data or burn if empty
             if position.supply.is_empty() && new_debt.is_empty() {
                 self.position_manager.burn(position_bucket);
+
+                Runtime::emit_event(PositionCloseEvent {});
                 return (None, repayment);
             }
 
@@ -499,6 +525,9 @@ mod lattic3 {
             // health = (supply / debt), * 100 for display
             let health = supply_value.checked_div(debt_value).unwrap();
             info!("[calculate_position_health] Health: {:?}", health);
+
+            // Fire health event
+            Runtime::emit_event(PositionHealthEvent { health });
 
             health
         }
