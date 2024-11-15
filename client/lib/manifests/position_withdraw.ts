@@ -41,7 +41,7 @@ CALL_METHOD
   Address("${component}")
   "position_withdraw"
   Bucket("position_badge")
-  Array<Bucket>(Bucket("bucket_1"));
+  Bucket("bucket_1");
 
 CALL_METHOD
   Address("${account}")
