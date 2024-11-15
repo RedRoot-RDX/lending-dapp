@@ -5,9 +5,10 @@ import { useState } from "react";
 import { WithdrawDialog } from "./withdraw-dialog";
 import { useToast } from "../ui/use-toast";
 import { RepayDialog } from "./repay-dialog";
-import position_withdraw_rtm from "@/lib/manifests/position_withdraw.ts";
+import position_withdraw_rtm from "@/lib/manifests/position_withdraw";
 import { gatewayApi, rdt } from "@/lib/radix";
 import { useRadixContext } from "@/contexts/provider";
+import config from "@/lib/config.json";
 
 export const portfolioColumns: ColumnDef<Asset>[] = [
   {
@@ -53,8 +54,8 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
             return;
           }
 
-          const borrowerBadgeAddr = process.env.NEXT_PUBLIC_BORROWER_BADGE_ADDR;
-          const marketComponent = process.env.NEXT_PUBLIC_MARKET_COMPONENT;
+          const borrowerBadgeAddr = config.borrowerBadgeAddr;
+          const marketComponent = config.marketComponent;
 
           if (!borrowerBadgeAddr || !marketComponent) {
             toast({

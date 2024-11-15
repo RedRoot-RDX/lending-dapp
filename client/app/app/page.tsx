@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ShootingStars } from "@/components/ui/shooting-stars";
 import { borrowColumns } from "@/components/asset-table/borrow-columns";
 import BorrowDialog from "@/components/borrow-dialog";
+import config from "@/lib/config.json";
 
 interface SuppliedAsset {
   address: string;
@@ -93,7 +94,7 @@ export default function App() {
       try {
         if (!accounts || !gatewayApi) return;
 
-        const borrowerBadgeAddr = process.env.NEXT_PUBLIC_BORROWER_BADGE_ADDR;
+        const borrowerBadgeAddr = config.borrowerBadgeAddr;
         if (!borrowerBadgeAddr) throw new Error("Borrower badge address not configured");
 
         const accountState = await gatewayApi.state.getEntityDetailsVaultAggregated(accounts[0].address);
