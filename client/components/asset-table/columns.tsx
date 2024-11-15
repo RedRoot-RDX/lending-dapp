@@ -42,7 +42,13 @@ export const columns: ColumnDef<Asset, unknown>[] = [
     header: "Wallet Balance",
     cell: ({ row }) => {
       const isExpanded = row.getIsExpanded();
-      return isExpanded ? null : row.getValue("wallet_balance");
+      const balance = row.getValue("wallet_balance");
+      if (isExpanded) return null;
+      return balance === -1 ? (
+        <span className="text-muted-foreground">Loading...</span>
+      ) : (
+        balance
+      );
     },
   },
   {

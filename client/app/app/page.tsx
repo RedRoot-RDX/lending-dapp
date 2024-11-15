@@ -27,7 +27,7 @@ export default function App() {
     Object.entries(getAssetAddrRecord()).map(([label, address]) => ({
       address,
       label: label as AssetName,
-      wallet_balance: getWalletBalance(label as AssetName),
+      wallet_balance: -1,
       select_native: 0,
       apy: 0,
     }))
@@ -45,6 +45,7 @@ export default function App() {
   const [netWorth, setNetWorth] = useState<number>(0);
   const [netApy, setNetApy] = useState<number>(0);
   const [health, setHealth] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   const hasSelectedSupplyAssets = Object.keys(supplyRowSelection).length > 0;
   const hasSelectedBorrowAssets = Object.keys(borrowRowSelection).length > 0;
@@ -63,7 +64,7 @@ export default function App() {
         // For now, using dummy supplied assets data (address -> amount mapping)
         const dummySuppliedAssets = [
           {
-            address: "resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd",
+            address: "resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc",
             supplied_amount: 500.25,
           },
           {
@@ -73,25 +74,25 @@ export default function App() {
         ];
 
         // Convert to portfolio data by looking up asset info from configs
-        const supplyPortfolioData: Asset[] = dummySuppliedAssets
-          .map(suppliedAsset => {
-            // Find asset config by address
-            const assetConfig = Object.entries(getAssetAddrRecord()).find(
-              ([_, address]) => address === suppliedAsset.address
-            );
+        const supplyPortfolioData: Asset[] = await Promise.all(
+          dummySuppliedAssets
+            .map(async suppliedAsset => {
+              const assetConfig = Object.entries(getAssetAddrRecord()).find(
+                ([_, address]) => address === suppliedAsset.address
+              );
 
-            if (!assetConfig) return null;
-            const [label] = assetConfig;
-
-            return {
-              address: suppliedAsset.address,
-              label: label as AssetName,
-              wallet_balance: getWalletBalance(label as AssetName),
-              select_native: suppliedAsset.supplied_amount,
-              apy: getAssetApy(label as AssetName),
-            };
-          })
-          .filter((asset): asset is Asset => asset !== null);
+              if (!assetConfig) return null;
+              const [label] = assetConfig;
+              if(!accounts) return;
+              return {
+                address: suppliedAsset.address,
+                label: label as AssetName,
+                wallet_balance: await getWalletBalance(label as AssetName, accounts[0].address),
+                select_native: suppliedAsset.supplied_amount,
+                apy: getAssetApy(label as AssetName),
+              };
+            })
+        ).then(results => results.filter((asset): asset is Asset => asset !== null));
 
         setSupplyPortfolioData(supplyPortfolioData);
 
@@ -108,24 +109,26 @@ export default function App() {
         ];
 
         // Convert to portfolio data
-        const borrowPortfolioData: Asset[] = dummyBorrowedAssets
-          .map(borrowedAsset => {
-            const assetConfig = Object.entries(getAssetAddrRecord()).find(
-              ([_, address]) => address === borrowedAsset.address
-            );
+        const borrowPortfolioData: Asset[] = await Promise.all(
+          dummyBorrowedAssets
+            .map(async borrowedAsset => {
+              const assetConfig = Object.entries(getAssetAddrRecord()).find(
+                ([_, address]) => address === borrowedAsset.address
+              );
 
-            if (!assetConfig) return null;
-            const [label] = assetConfig;
+              if (!assetConfig) return null;
+              const [label] = assetConfig;
+              if(!accounts) return;
 
-            return {
-              address: borrowedAsset.address,
-              label: label as AssetName,
-              wallet_balance: getWalletBalance(label as AssetName),
-              select_native: borrowedAsset.borrowed_amount,
-              apy: getAssetApy(label as AssetName)
-            };
-          })
-          .filter((asset): asset is Asset => asset !== null);
+              return {
+                address: borrowedAsset.address,
+                label: label as AssetName,
+                wallet_balance: await getWalletBalance(label as AssetName, accounts[0].address),
+                select_native: borrowedAsset.borrowed_amount,
+                apy: getAssetApy(label as AssetName)
+              };
+            })
+        ).then(results => results.filter((asset): asset is Asset => asset !== null));
 
         setBorrowPortfolioData(borrowPortfolioData);
       } catch (error) {
@@ -195,6 +198,25 @@ export default function App() {
     fetchOverallStats();
   }, [accounts]);
 
+  useEffect(() => {
+    const updateWalletBalances = async () => {
+      if (!accounts) return;
+      const updatedData = await Promise.all(
+        supplyData.map(async (asset) => ({
+          ...asset,
+          wallet_balance: await getWalletBalance(asset.label as AssetName, accounts[0].address),
+        }))
+      );
+      setSupplyData(updatedData);
+      setIsLoading(false);
+    };
+    
+    updateWalletBalances();
+  }, [accounts]);
+
+  if (isLoading) {
+    return <div>Loading asset data...</div>;
+  }
 
   const getSelectedSupplyAssets = () => {
     return Object.keys(supplyRowSelection).map(index => supplyData[Number(index)]);
