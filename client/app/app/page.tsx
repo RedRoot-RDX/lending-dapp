@@ -16,6 +16,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { ShootingStars } from "@/components/ui/shooting-stars";
 import { borrowColumns } from "@/components/asset-table/borrow-columns";
 import BorrowDialog from "@/components/borrow-dialog";
+import config from "@/lib/config.json";
+import open_position_rtm from "@/lib/manifests/open_position";
+import position_supply_rtm from "@/lib/manifests/position_supply";
+import position_borrow_rtm from "@/lib/manifests/position_borrow";
 
 interface SuppliedAsset {
   address: string;
@@ -93,14 +97,14 @@ export default function App() {
       try {
         if (!accounts || !gatewayApi) return;
 
-        const borrowerBadgeAddr = process.env.NEXT_PUBLIC_BORROWER_BADGE_ADDR;
+        const borrowerBadgeAddr = config.borrowerBadgeAddr;
         if (!borrowerBadgeAddr) throw new Error("Borrower badge address not configured");
 
         const accountState = await gatewayApi.state.getEntityDetailsVaultAggregated(accounts[0].address);
         const getNFTBalance = accountState.non_fungible_resources.items.find(
           (fr: { resource_address: string }) => fr.resource_address === borrowerBadgeAddr
         )?.vaults.items[0];
-        console.log("NFT Balance: ", getNFTBalance);
+        
         if (!getNFTBalance) {
           return { assets: [], badgeValue: 0 };
         }
@@ -120,7 +124,17 @@ export default function App() {
           supplied_amount: parseFloat(entry.value.value)
         })) || [];
 
-        // Convert to portfolio data
+        // Extract borrow positions
+        const borrowField = metadata.data.programmatic_json.fields.find(
+          field => field.field_name === "borrow"
+        );
+
+        const borrowedAssets = borrowField?.entries.map(entry => ({
+          address: entry.key.value,
+          borrowed_amount: parseFloat(entry.value.value)
+        })) || [];
+
+        // Convert to portfolio data for supply
         const supplyPortfolioData: Asset[] = await Promise.all(
           suppliedAssets.map(async (suppliedAsset) => {
             const assetConfig = Object.entries(getAssetAddrRecord()).find(
@@ -140,50 +154,30 @@ export default function App() {
           })
         ).then(results => results.filter((asset): asset is Asset => asset !== null));
 
-        setSupplyPortfolioData(supplyPortfolioData);
-
-        // New dummy borrow data
-        const dummyBorrowedAssets = [
-          {
-            address: "resource_astrl",
-            borrowed_amount: 99.12,
-          },
-          {
-            address: "resource_xusdc",
-            borrowed_amount: 130.01,
-          }
-        ];
-
-        // Convert to portfolio data
+        // Convert to portfolio data for borrow
         const borrowPortfolioData: Asset[] = await Promise.all(
-          dummyBorrowedAssets
-            .map(async borrowedAsset => {
-              const assetConfig = Object.entries(getAssetAddrRecord()).find(
-                ([_, address]) => address === borrowedAsset.address
-              );
+          borrowedAssets.map(async (borrowedAsset) => {
+            const assetConfig = Object.entries(getAssetAddrRecord()).find(
+              ([_, address]) => address === borrowedAsset.address
+            );
 
-              if (!assetConfig) return null;
-              const [label] = assetConfig;
-              if(!accounts) return;
+            if (!assetConfig) return null;
+            const [label] = assetConfig;
 
-              return {
-                address: borrowedAsset.address,
-                label: label as AssetName,
-                wallet_balance: await getWalletBalance(label as AssetName, accounts[0].address),
-                select_native: borrowedAsset.borrowed_amount,
-                apy: getAssetApy(label as AssetName)
-              };
-            })
-        ).then(results => results.filter((asset: unknown): asset is Asset => asset !== null));
+            return {
+              address: borrowedAsset.address,
+              label: label as AssetName,
+              wallet_balance: await getWalletBalance(label as AssetName, accounts[0].address),
+              select_native: borrowedAsset.borrowed_amount,
+              apy: getAssetApy(label as AssetName),
+            };
+          })
+        ).then(results => results.filter((asset): asset is Asset => asset !== null));
 
+        setSupplyPortfolioData(supplyPortfolioData);
         setBorrowPortfolioData(borrowPortfolioData);
       } catch (error) {
         console.error("Error fetching portfolio data:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to fetch portfolio data",
-        });
       }
     };
 
@@ -272,33 +266,138 @@ export default function App() {
     return Object.keys(borrowRowSelection).map(index => supplyData[Number(index)]);
   };
 
-  const handleSupplyConfirm = () => {
-    const selectedAssets = getSelectedSupplyAssets();
-    const assetsToSupply = selectedAssets.map(asset => ({
-      address: asset.address,
-      amount: asset.select_native
-    }));
+  const handleSupplyConfirm = async () => {
+    try {
+      if (!accounts || !gatewayApi) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Wallet not connected",
+        });
+        return;
+      }
 
-    console.log("Supply confirmed!");
-    console.log("Assets to supply:", assetsToSupply);
+      const selectedAssets = getSelectedSupplyAssets();
+      const assetsToSupply = selectedAssets.map(asset => ({
+        address: asset.address,
+        amount: asset.select_native
+      }));
 
-    // Reset supply row selection
-    setSupplyRowSelection({});
-    setIsPreviewDialogOpen(false);
+      // Check if user has an existing position
+      const accountState = await gatewayApi.state.getEntityDetailsVaultAggregated(accounts[0].address);
+      const getNFTBalance = accountState.non_fungible_resources.items.find(
+        (fr: { resource_address: string }) => fr.resource_address === config.borrowerBadgeAddr
+      )?.vaults.items[0];
+
+      let manifest;
+      if (!getNFTBalance?.items?.[0]) {
+        // No existing position - create new one
+        manifest = open_position_rtm({
+          component: config.marketComponent,
+          account: accounts[0].address,
+          assets: assetsToSupply
+        });
+      } else {
+        // Existing position - add to it
+        manifest = position_supply_rtm({
+          component: config.marketComponent,
+          account: accounts[0].address,
+          position_badge_address: config.borrowerBadgeAddr,
+          position_badge_local_id: getNFTBalance.items[0],
+          assets: assetsToSupply
+        });
+      }
+
+      console.log("Supply manifest:", manifest);
+
+      const result = await rdt?.walletApi.sendTransaction({
+        transactionManifest: manifest,
+        version: 1,
+      });
+
+      if (result) {
+        toast({
+          title: "Supply Successful",
+          description: `Supplied ${assetsToSupply.length} assets`,
+        });
+      }
+    } catch (error) {
+      console.error("Supply error:", error);
+      toast({
+        variant: "destructive",
+        title: "Supply Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    } finally {
+      setSupplyRowSelection({});
+      setIsPreviewDialogOpen(false);
+    }
   };
 
-  const handleBorrowConfirm = () => {
-    const selectedAssets = getSelectedBorrowAssets();
-    const assetsToBorrow = selectedAssets.map(asset => ({
-      address: asset.address,
-      amount: asset.select_native
-    }));
+  const handleBorrowConfirm = async () => {
+    try {
+      if (!accounts || !gatewayApi) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Wallet not connected",
+        });
+        return;
+      }
 
-    console.log("Borrow confirmed!");
-    console.log("Assets to borrow:", assetsToBorrow);
+      const selectedAssets = getSelectedBorrowAssets();
+      const assetsToBorrow = selectedAssets.map(asset => ({
+        address: asset.address,
+        amount: asset.select_native
+      }));
 
-    setBorrowRowSelection({});
-    setIsBorrowDialogOpen(false);
+      // Get NFT ID from account state
+      const accountState = await gatewayApi.state.getEntityDetailsVaultAggregated(accounts[0].address);
+      const getNFTBalance = accountState.non_fungible_resources.items.find(
+        (fr: { resource_address: string }) => fr.resource_address === config.borrowerBadgeAddr
+      )?.vaults.items[0];
+
+      if (!getNFTBalance?.items?.[0]) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No position NFT found. Please supply assets first.",
+        });
+        return;
+      }
+
+      const manifest = position_borrow_rtm({
+        component: config.marketComponent,
+        account: accounts[0].address,
+        position_badge_address: config.borrowerBadgeAddr,
+        position_badge_local_id: getNFTBalance.items[0],
+        assets: assetsToBorrow
+      });
+
+      console.log("Borrow manifest:", manifest);
+
+      const result = await rdt?.walletApi.sendTransaction({
+        transactionManifest: manifest,
+        version: 1,
+      });
+
+      if (result) {
+        toast({
+          title: "Borrow Successful",
+          description: `Borrowed ${assetsToBorrow.length} assets`,
+        });
+      }
+    } catch (error) {
+      console.error("Borrow error:", error);
+      toast({
+        variant: "destructive",
+        title: "Borrow Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    } finally {
+      setBorrowRowSelection({});
+      setIsBorrowDialogOpen(false);
+    }
   };
 
   const validateSelectedSupplyAssets = () => {
