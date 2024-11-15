@@ -12,7 +12,7 @@ interface Asset {
 export default function open_position_rtm({ component, account, assets }: ManifestArgs) {
   // Bucket fetch transaction manifests
   let asset_buckets = "";
-  let bucket_vec = ""
+  let bucket_vec = "";
 
   assets.forEach((asset) => {
     // Fetch buckets for each asset
@@ -25,7 +25,7 @@ CALL_METHOD
 
 TAKE_FROM_WORKTOP
     Address("${asset.address}")
-    Decimal("${asset.amount}");
+    Decimal("${asset.amount}")
     Bucket("bucket_${asset.address}");
 
     `

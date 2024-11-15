@@ -29,7 +29,7 @@ CALL_METHOD
 
 TAKE_FROM_WORKTOP
   Address("${asset.address}")
-  Decimal("${asset.amount}");
+  Decimal("${asset.amount}")
   Bucket("bucket_${asset.address}");
 
 `
