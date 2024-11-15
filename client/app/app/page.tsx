@@ -17,6 +17,38 @@ import { ShootingStars } from "@/components/ui/shooting-stars";
 import { borrowColumns } from "@/components/asset-table/borrow-columns";
 import BorrowDialog from "@/components/borrow-dialog";
 
+interface SuppliedAsset {
+  address: string;
+  supplied_amount: number;
+}
+
+interface NFTMetadata {
+  position_type?: string;
+  supplied_assets?: string;
+}
+
+interface StateNonFungibleDetailsResponseItem {
+  metadata?: NFTMetadata;
+}
+
+interface NFTData {
+  data: {
+    programmatic_json: {
+      fields: Array<{
+        field_name: string;
+        entries: Array<{
+          key: {
+            value: string;  // resource address
+          };
+          value: {
+            value: string;  // amount
+          };
+        }>;
+      }>;
+    };
+  };
+}
+
 export default function App() {
   const { accounts } = useRadixContext();
   const [supplyRowSelection, setSupplyRowSelection] = React.useState<RowSelectionState>({});
@@ -59,39 +91,53 @@ export default function App() {
   useEffect(() => {
     const fetchPortfolioData = async () => {
       try {
-        // TODO: Fetch actual portfolio data from backend
+        if (!accounts || !gatewayApi) return;
 
-        // For now, using dummy supplied assets data (address -> amount mapping)
-        const dummySuppliedAssets = [
-          {
-            address: "resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc",
-            supplied_amount: 500.25,
-          },
-          {
-            address: "resource_floop",
-            supplied_amount: 1000.00,
-          }
-        ];
+        const borrowerBadgeAddr = process.env.NEXT_PUBLIC_BORROWER_BADGE_ADDR;
+        if (!borrowerBadgeAddr) throw new Error("Borrower badge address not configured");
 
-        // Convert to portfolio data by looking up asset info from configs
+        const accountState = await gatewayApi.state.getEntityDetailsVaultAggregated(accounts[0].address);
+        const getNFTBalance = accountState.non_fungible_resources.items.find(
+          (fr: { resource_address: string }) => fr.resource_address === borrowerBadgeAddr
+        )?.vaults.items[0];
+        console.log("NFT Balance: ", getNFTBalance);
+        if (!getNFTBalance) {
+          return { assets: [], badgeValue: 0 };
+        }
+
+        const metadata = await gatewayApi.state.getNonFungibleData(
+          JSON.parse(JSON.stringify(borrowerBadgeAddr)),
+          JSON.parse(JSON.stringify(getNFTBalance)).items[0]
+        ) as NFTData;
+
+        // Extract supply positions
+        const supplyField = metadata.data.programmatic_json.fields.find(
+          field => field.field_name === "supply"
+        );
+
+        const suppliedAssets = supplyField?.entries.map(entry => ({
+          address: entry.key.value,
+          supplied_amount: parseFloat(entry.value.value)
+        })) || [];
+
+        // Convert to portfolio data
         const supplyPortfolioData: Asset[] = await Promise.all(
-          dummySuppliedAssets
-            .map(async suppliedAsset => {
-              const assetConfig = Object.entries(getAssetAddrRecord()).find(
-                ([_, address]) => address === suppliedAsset.address
-              );
+          suppliedAssets.map(async (suppliedAsset) => {
+            const assetConfig = Object.entries(getAssetAddrRecord()).find(
+              ([_, address]) => address === suppliedAsset.address
+            );
 
-              if (!assetConfig) return null;
-              const [label] = assetConfig;
-              if(!accounts) return;
-              return {
-                address: suppliedAsset.address,
-                label: label as AssetName,
-                wallet_balance: await getWalletBalance(label as AssetName, accounts[0].address),
-                select_native: suppliedAsset.supplied_amount,
-                apy: getAssetApy(label as AssetName),
-              };
-            })
+            if (!assetConfig) return null;
+            const [label] = assetConfig;
+
+            return {
+              address: suppliedAsset.address,
+              label: label as AssetName,
+              wallet_balance: await getWalletBalance(label as AssetName, accounts[0].address),
+              select_native: suppliedAsset.supplied_amount,
+              apy: getAssetApy(label as AssetName),
+            };
+          })
         ).then(results => results.filter((asset): asset is Asset => asset !== null));
 
         setSupplyPortfolioData(supplyPortfolioData);
@@ -128,7 +174,7 @@ export default function App() {
                 apy: getAssetApy(label as AssetName)
               };
             })
-        ).then(results => results.filter((asset): asset is Asset => asset !== null));
+        ).then(results => results.filter((asset: unknown): asset is Asset => asset !== null));
 
         setBorrowPortfolioData(borrowPortfolioData);
       } catch (error) {
@@ -375,7 +421,11 @@ export default function App() {
               <CardContent>
                 <PortfolioTable
                   columns={portfolioColumns}
-                  data={portfolioData.map(asset => ({ ...asset, type: 'supply' as const }))}
+                  data={portfolioData.map(asset => ({ 
+                    ...asset, 
+                    type: 'supply' as const,
+                    supplied: asset.select_native // Rename debt to supplied
+                  }))}
                 />
               </CardContent>
             </Card>

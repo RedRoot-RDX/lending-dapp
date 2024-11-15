@@ -110,9 +110,7 @@ export const getWalletBalances = async (accountAddress: string): Promise<Record<
     const balances: Partial<Record<AssetName, number>> = {};
     
     const fungibleResources = response.fungible_resources.items || [];
-    console.log("Fungible: ", fungibleResources);
     fungibleResources.forEach(resource => {
-      console.log("Balance: ", resource.vaults.items[0].amount);
       // Find matching asset config by address
       const assetEntry = Object.entries(assetConfigs).find(
         ([_, config]) => config.address === resource.resource_address

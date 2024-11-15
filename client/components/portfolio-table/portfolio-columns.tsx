@@ -23,7 +23,10 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
   },
   {
     accessorKey: "select_native",
-    header: "Debt",
+    header: ({ table }) => {
+      const firstRow = table.getRowModel().rows[0];
+      return firstRow?.original.type === 'supply' ? "Supplied" : "Debt";
+    },
   },
   {
     accessorKey: "apy",
