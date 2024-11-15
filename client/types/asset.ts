@@ -1,3 +1,6 @@
+import { gatewayApi } from '@/lib/radix';
+import { FungibleResourcesCollectionAllOfToJSON } from '@radixdlt/babylon-gateway-api-sdk';
+
 export type AssetName = 'XRD' | 'xwBTC' | 'FLOOP' | 'xUSDC' | 'EARLY' | 'HUG' | 'DFP2' | 'xETH' | 'ASTRL' | 'CAVIAR';
 
 export interface Asset {
@@ -19,7 +22,7 @@ export interface AssetConfig {
 
 export const assetConfigs: Record<AssetName, AssetConfig> = {
   XRD: {
-    address: "resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd",
+    address: "resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc",
     label: "XRD",
     icon: "https://assets.radixdlt.com/icons/icon-xrd-32x32.png",
     apy: 10.3,
@@ -95,20 +98,48 @@ export const getAssetAddrRecord = (): Record<AssetName, string> => {
   }), {} as Record<AssetName, string>);
 };
 
-export const mockWalletBalances: Record<AssetName, number> = {
-  'XRD': 1000.50,
-  'xwBTC': 2500.75,
-  'FLOOP': 1500.25,
-  'xUSDC': 5.5,
-  'EARLY': 0.75,
-  'HUG': 100.0,
-  'DFP2': 50.0,
-  'xETH': 2.5,
-  'ASTRL': 1000.0,
-  'CAVIAR': 500.0,
+// Replace mockWalletBalances with a function to fetch real balances
+export const getWalletBalances = async (accountAddress: string): Promise<Record<AssetName, number>> => {
+  if (!gatewayApi) {
+    console.error("Gateway API not initialized");
+    return {} as Record<AssetName, number>;
+  }
+
+  try {
+    const response = await gatewayApi.state.getEntityDetailsVaultAggregated(accountAddress);
+    const balances: Partial<Record<AssetName, number>> = {};
+    
+    const fungibleResources = response.fungible_resources.items || [];
+    console.log("Fungible: ", fungibleResources);
+    fungibleResources.forEach(resource => {
+      console.log("Balance: ", resource.vaults.items[0].amount);
+      // Find matching asset config by address
+      const assetEntry = Object.entries(assetConfigs).find(
+        ([_, config]) => config.address === resource.resource_address
+      );
+
+      if (assetEntry) {
+        const [assetName] = assetEntry;
+        // Convert from string to number and handle decimal places
+        balances[assetName as AssetName] = Number(resource.vaults.items[0].amount);
+      }
+    });
+
+    // Fill in zero balances for assets not found in the response
+    Object.keys(assetConfigs).forEach(assetName => {
+      if (!(assetName in balances)) {
+        balances[assetName as AssetName] = 0;
+      }
+    });
+    return balances as Record<AssetName, number>; 
+  } catch (error) {
+    console.error("Error fetching wallet balances:", error);
+    return {} as Record<AssetName, number>;
+  }
 };
 
-// You can later replace this with an actual API call
-export const getWalletBalance = (asset: AssetName): number => {
-  return mockWalletBalances[asset] || 0;
+// Update the getWalletBalance helper to use the new async function
+export const getWalletBalance = async (asset: AssetName, accountAddress: string): Promise<number> => {
+  const balances = await getWalletBalances(accountAddress);
+  return balances[asset] || 0;
 };
