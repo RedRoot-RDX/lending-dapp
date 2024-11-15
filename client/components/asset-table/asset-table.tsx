@@ -33,7 +33,7 @@ interface AssetTableProps<TData extends Asset, TValue> {
   data: TData[];
   rowSelection: RowSelectionState;
   onRowSelectionChange: (value: RowSelectionState) => void;
-  onAmountChange: (address: string, amount: number) => void;
+  onAmountChange: (address: string, amount: number, type: 'borrow' | 'supply') => void;
   type: 'borrow' | 'supply';
 }
 
@@ -57,7 +57,7 @@ export function AssetTable<TData extends Asset, TValue>({
           : row
       )
     );
-    onAmountChange(address, amount);
+    onAmountChange(address, amount, type);
   };
 
   const handleConfirm = (asset: Asset, amount: number) => {
@@ -73,7 +73,11 @@ export function AssetTable<TData extends Asset, TValue>({
     // Reset amounts for unselected assets
     setTableData(current =>
       current.map(row => {
-        const isSelected = newSelection[table.getRowModel().rows.findIndex(r => r.original.address === row.address)];
+        const rowIndex = table.getRowModel().rows.findIndex(r => r.original.address === row.address);
+        const isSelected = newSelection[rowIndex];
+        if (!isSelected) {
+          onAmountChange(row.address, 0, type); // Notify parent of amount change
+        }
         return isSelected ? row : { ...row, select_native: 0 };
       })
     );
