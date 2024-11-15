@@ -62,7 +62,7 @@ pub struct PositionCloseEvent {}
 //. Internal position operations
 #[derive(ScryptoSbor, ScryptoEvent)]
 pub struct PositionHealthEvent {
-    pub health: Decimal,
+    pub health: PreciseDecimal,
 }
 
 //. Asset management

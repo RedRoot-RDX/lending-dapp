@@ -4,7 +4,7 @@ use crate::asset::{AssetEntry, ADDRESSES};
 use crate::events::*;
 use crate::pool::{Pool, TPool};
 use crate::position::Position;
-use crate::utils::{LazyVec, ValueMap};
+use crate::utils::{p_to_dec, LazyVec, ValueMap};
 use scrypto::prelude::*;
 
 /* ----------------- Blueprint ---------------- */
@@ -18,6 +18,8 @@ use scrypto::prelude::*;
     PositionWithdrawEvent,
     PositionRepayEvent,
     PositionCloseEvent,
+    // Internal position operations
+    PositionHealthEvent,
     // Asset management
     AddAssetEvent,
     TrackAssetEvent,
@@ -34,6 +36,7 @@ mod lattic3 {
         methods {
             // Position management
             open_position     => PUBLIC;
+            close_position    => restrict_to: [SELF];
             position_supply   => PUBLIC;
             position_borrow   => PUBLIC;
             position_withdraw => PUBLIC;
@@ -62,7 +65,7 @@ mod lattic3 {
     extern_blueprint! {
         "package_sim1pkwaf2l9zkmake5h924229n44wp5pgckmpn0lvtucwers56awywems",
         PriceStream {
-            fn get_price(&self, asset: ResourceAddress) -> Option<Decimal>;
+            fn get_price(&self, asset: ResourceAddress) -> Option<PreciseDecimal>;
         }
     }
 
@@ -258,7 +261,7 @@ mod lattic3 {
             }
 
             // Mint and return position NFT
-            let position: Position = Position::create(valuemap.clone());
+            let position: Position = Position::new(valuemap.clone());
             self.open_positions += 1;
             let position_badge = self.position_manager.mint_non_fungible(&NonFungibleLocalId::Integer(self.open_positions.into()), position);
 
@@ -270,6 +273,21 @@ mod lattic3 {
 
             // Return
             (position_badge, pool_units)
+        }
+
+        pub fn close_position(&mut self, position_bucket: NonFungibleBucket) {
+            // Sanity checks
+            assert_eq!(position_bucket.amount(), dec!(1), "Position NFT must be provided");
+            assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
+
+            // Burn the nft
+            position_bucket.burn();
+
+            // Decrement the number of open positions
+            self.open_positions -= 1;
+
+            // Fire position close event
+            Runtime::emit_event(PositionCloseEvent {});
         }
 
         pub fn position_supply(&mut self, position_bucket: NonFungibleBucket, supply: Vec<Bucket>) -> (NonFungibleBucket, Vec<Bucket>) {
@@ -324,7 +342,7 @@ mod lattic3 {
             assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
 
             for (address, amount) in &borrow {
-                assert!(amount > &dec!(0.0), "Borrow amount must be greater than 0");
+                assert!(amount > &pdec!(0.0), "Borrow amount must be greater than 0");
                 assert!(self.validate_fungible(*address), "Asset with address {:?} is invalid", address);
             }
 
@@ -345,7 +363,7 @@ mod lattic3 {
 
             // Ensure that operation won't put position health below 1.0
             let health = self.calculate_position_health(position.supply, new_debt.clone());
-            assert!(health >= dec!(1.0), "Position health will be below 1.0. Reverting operation");
+            assert!(health >= pdec!(1.0), "Position health will be below 1.0. Reverting operation");
 
             // Get resources from pools
             let mut borrowed: Vec<Bucket> = Vec::new();
@@ -372,7 +390,7 @@ mod lattic3 {
             assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
 
             let pool_unit_address = pool_units.resource_address();
-            let provided: Decimal = pool_units.amount();
+            let provided: PreciseDecimal = pool_units.amount().into();
             assert!(!pool_units.is_empty(), "Bucket for {:?} is empty", pool_unit_address);
             assert!(self.pool_unit_to_address.get(&pool_unit_address).is_some(), "Address not found for pool unit {:?}", pool_unit_address);
 
@@ -387,17 +405,14 @@ mod lattic3 {
                 .get(&pool_unit_address)
                 .expect(format!("Cannot get address for pool unit {:?}", pool_unit_address).as_str());
 
-            // Execute withdraw
-            let withdrawn = self.redeem(pool_units);
-
             // Recalculate supply
             let supplied = *position.supply.get(&address).expect(format!("Cannot get supplied amount for asset {:?}", address).as_str());
-            let supply_amount = supplied.checked_sub(withdrawn.amount()).unwrap();
+            let supply_amount = supplied.checked_sub(self.get_redemption_value(pool_unit_address, provided)).unwrap();
             info!("[position_withdraw] Supplied: {}", supplied);
             info!("[position_withdraw] Supply amount: {}", supply_amount);
 
             let mut new_supply = position.supply;
-            if supply_amount > dec!(0.0) {
+            if supply_amount > pdec!(0.0) {
                 new_supply.insert(address, supply_amount);
             } else {
                 new_supply.remove(&address);
@@ -405,22 +420,22 @@ mod lattic3 {
 
             // Ensure that operation won't put position health below 1.0
             let health = self.calculate_position_health(new_supply.clone(), position.debt.clone());
-            assert!(health >= dec!(1.0), "Position health will be below 1.0. Reverting operation");
+            assert!(health >= pdec!(1.0), "Position health will be below 1.0. Reverting operation");
+
+            // Execute withdrawal
+            let withdrawn = self.redeem(pool_units);
 
             // Fire position withdraw event
             Runtime::emit_event(PositionWithdrawEvent {
                 position_id: local_id.clone(),
                 provided_pool_unit: (pool_unit_address, provided),
                 supply: new_supply.clone(),
-                withdrawn: (address, withdrawn.amount()),
+                withdrawn: (address, withdrawn.amount().into()),
             });
 
             // Update NFT data or burn if empty
             if new_supply.is_empty() && position.debt.is_empty() {
-                // self.position_manager.burn(position_bucket);
-                position_bucket.burn();
-
-                Runtime::emit_event(PositionCloseEvent {});
+                self.close_position(position_bucket);
                 return (None, withdrawn);
             }
 
@@ -435,7 +450,7 @@ mod lattic3 {
             assert_eq!(position_bucket.resource_address(), self.position_manager.address(), "Position NFT must be provided");
 
             let repayment_address = repayment.resource_address();
-            let repaid: Decimal = repayment.amount();
+            let repaid: PreciseDecimal = repayment.amount().into();
             assert!(!repayment.is_empty(), "Bucket for {:?} is empty", repayment_address);
 
             // Fetch NFT data
@@ -451,10 +466,10 @@ mod lattic3 {
                 .debt
                 .get(&repayment_address)
                 .expect(format!("Cannot get borrowed amount for asset {:?}", repayment_address).as_str());
-            let repay_amount = if repayment.amount() > borrowed { borrowed } else { repayment.amount() };
+            let repay_amount = if repaid > borrowed { borrowed } else { repaid };
 
             let mut bucket = Bucket::new(repayment_address);
-            bucket.put(repayment.take(repay_amount));
+            bucket.put(repayment.take(p_to_dec(repay_amount)));
 
             // Dump repayment into pool
             self.hard_deposit(bucket);
@@ -464,7 +479,7 @@ mod lattic3 {
             let borrowed_amount = borrowed.checked_sub(repay_amount).unwrap();
 
             // Update KV if the new borrowed amount > 0, else delete the entry
-            if borrowed_amount > dec!(0.0) {
+            if borrowed_amount > pdec!(0.0) {
                 new_debt.insert(repayment_address, borrowed_amount);
             } else {
                 new_debt.remove(&repayment_address);
@@ -479,9 +494,7 @@ mod lattic3 {
 
             // Update NFT data or burn if empty
             if position.supply.is_empty() && new_debt.is_empty() {
-                self.position_manager.burn(position_bucket);
-
-                Runtime::emit_event(PositionCloseEvent {});
+                self.close_position(position_bucket);
                 return (None, repayment);
             }
 
@@ -491,7 +504,7 @@ mod lattic3 {
         }
 
         // Internal position methods
-        pub fn get_position_health(&self, position_proof: NonFungibleProof) -> Decimal {
+        pub fn get_position_health(&self, position_proof: NonFungibleProof) -> PreciseDecimal {
             // Sanity checks
             let position: Position = position_proof
                 .check_with_message(self.position_manager.address(), "Position check failed")
@@ -504,11 +517,11 @@ mod lattic3 {
             health
         }
 
-        pub fn calculate_position_health(&self, supply: ValueMap, debt: ValueMap) -> Decimal {
+        pub fn calculate_position_health(&self, supply: ValueMap, debt: ValueMap) -> PreciseDecimal {
             // Return 'infinity' if no debt taken out
             if debt.is_empty() {
-                info!("[calculate_position_health] Health: Infinity {:?}", Decimal::MAX);
-                return Decimal::MAX;
+                info!("[calculate_position_health] Health: Infinity {:?}", PreciseDecimal::MAX);
+                return PreciseDecimal::MAX;
             }
 
             // Calculate supply value
@@ -520,7 +533,7 @@ mod lattic3 {
             info!("[calculate_position_health] Debt value: {}", debt_value);
 
             // Sanity check
-            assert!(debt_value > dec!(0.0), "Debt value must be greater than 0, I don't know how we got here. Debt: {:?}", debt);
+            assert!(debt_value > pdec!(0.0), "Debt value must be greater than 0, I don't know how we got here. Debt: {:?}", debt);
 
             // health = (supply / debt), * 100 for display
             let health = supply_value.checked_div(debt_value).unwrap();
@@ -571,13 +584,14 @@ mod lattic3 {
             redemption
         }
 
-        pub fn get_redemption_value(&self, pool_unit: ResourceAddress, amount: Decimal) -> Decimal {
+        pub fn get_redemption_value(&self, pool_unit: ResourceAddress, amount: PreciseDecimal) -> PreciseDecimal {
             let address = self.pool_unit_to_address.get(&pool_unit).expect(format!("Unable to find asset for pool unit {:?}", pool_unit).as_str());
             let asset = self.assets.get(&address).unwrap();
 
-            let redemption = asset.pool.component.get_redemption_value(amount);
+            let redemption = asset.pool.component.get_redemption_value(p_to_dec(amount));
+
             info!("[get_redemption_value] Pool unit: [{:?} : {:?}], redeems: [{:?} : {:?}]", pool_unit, amount, *address, redemption);
-            redemption
+            redemption.into()
         }
 
         pub fn hard_deposit(&mut self, bucket: Bucket) {
@@ -593,14 +607,14 @@ mod lattic3 {
             info!("[hard_deposit] Deposited [{:?} : {:?}]", asset.address, amount);
         }
 
-        pub fn hard_withdraw(&mut self, address: ResourceAddress, amount: Decimal) -> Bucket {
+        pub fn hard_withdraw(&mut self, address: ResourceAddress, amount: PreciseDecimal) -> Bucket {
             // Sanity checks
             assert!(self.validate_fungible(address), "Asset with address {:?} is invalid", address);
 
             // Execute protected withdraw
             let mut asset = self.assets.get_mut(&address).expect("Cannot get asset entry");
-            let bucket = asset.pool.component.protected_withdraw(amount, WithdrawStrategy::Rounded(RoundingMode::ToZero));
-            assert_eq!(bucket.amount(), amount, "Withdrawal does not match requested amount");
+            let bucket = asset.pool.component.protected_withdraw(p_to_dec(amount), WithdrawStrategy::Rounded(RoundingMode::ToZero));
+            assert_eq!(bucket.amount(), p_to_dec(amount), "Withdrawal does not match requested amount");
 
             info!("[hard_withdraw] Withdrawn {:?} of {:?}", bucket.amount(), address);
             bucket
@@ -780,12 +794,12 @@ mod lattic3 {
         /// Calculates the USD values of all provided asset from the oracle
         // ! Uses a mock price stream
         // TODO: provide epoch to ensure data not out-of-date
-        fn get_asset_values(&self, assets: &ValueMap) -> (Decimal, ValueMap) {
+        fn get_asset_values(&self, assets: &ValueMap) -> (PreciseDecimal, ValueMap) {
             // Get prices
             let price_stream = self.price_stream();
 
             let mut usd_values: ValueMap = HashMap::new();
-            let mut total = dec!(0.0);
+            let mut total = pdec!(0.0);
 
             for (address, amount) in assets {
                 assert!(self.asset_list.find(address).is_some(), "Asset in the ValueMap is not listed ");
@@ -809,7 +823,7 @@ mod lattic3 {
             let mut kv: ValueMap = HashMap::new();
 
             for bucket in buckets {
-                kv.insert(bucket.resource_address(), bucket.amount());
+                kv.insert(bucket.resource_address(), bucket.amount().into());
             }
 
             kv

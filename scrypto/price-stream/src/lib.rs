@@ -21,12 +21,11 @@ mod lattic3_price_stream {
         owner_badge_address: ResourceAddress,
         updater_manager: ResourceManager,
 
-        // asset_list: LazyVec<ResourceAddress>, // TODO: implement the asset_list
-        prices: HashMap<ResourceAddress, Decimal>,
+        prices: HashMap<ResourceAddress, PreciseDecimal>,
     }
 
     impl PriceStream {
-        pub fn instantiate(dapp_definition_address: ComponentAddress) -> (Global<PriceStream>, Bucket) {
+        pub fn instantiate(dapp_definition_address: ComponentAddress, owner_badge: Bucket) -> (Global<PriceStream>, Bucket) {
             // Address reservation
             let (address_reservation, component_address) = Runtime::allocate_component_address(PriceStream::blueprint_id());
 
@@ -35,14 +34,14 @@ mod lattic3_price_stream {
             let component_access_rule: AccessRule = rule!(require(global_caller(component_address)));
 
             // Component owner
-            let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
-                .divisibility(DIVISIBILITY_NONE)
-                .metadata(metadata! {init {
-                    "name"        => "Lattic3 Price Stream Owner Badge", locked;
-                    "description" => "Badge representing the owner of the Lattic3 price stream", locked;
-                }})
-                .mint_initial_supply(1)
-                .into();
+            // / let owner_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
+            // /     .divisibility(DIVISIBILITY_NONE)
+            // /     .metadata(metadata! {init {
+            // /         "name"        => "Lattic3 Price Stream Owner Badge", locked;
+            // /         "description" => "Badge representing the owner of the Lattic3 price stream", locked;
+            // /     }})
+            // /     .mint_initial_supply(1)
+            // /     .into();
             let owner_access_rule: AccessRule = rule!(require(owner_badge.resource_address()));
             let owner_role: OwnerRole = OwnerRole::Fixed(owner_access_rule.clone());
 
@@ -77,7 +76,7 @@ mod lattic3_price_stream {
             };
 
             // ! -------- TESTING --------
-            component_data.prices.insert(XRD, dec!(0.01579));
+            component_data.prices.insert(XRD, pdec!(0.01579));
             // ! -/-/-/-/ TESTING -/-/-/-/
 
             //. Instantiate component
@@ -113,13 +112,13 @@ mod lattic3_price_stream {
             (component, owner_badge)
         }
 
-        pub fn update_asset(&mut self, asset: ResourceAddress, price: Decimal) {
+        pub fn update_asset(&mut self, asset: ResourceAddress, price: PreciseDecimal) {
             assert!(self.prices.get(&asset).is_some(), "Cannot update the price of an asset; asset not listed");
 
             *self.prices.get_mut(&asset).unwrap() = price;
         }
 
-        pub fn add_asset(&mut self, asset: ResourceAddress, price: Decimal) {
+        pub fn add_asset(&mut self, asset: ResourceAddress, price: PreciseDecimal) {
             assert!(self.prices.get(&asset).is_none(), "Asset already added");
 
             self.prices.insert(asset, price);
@@ -131,7 +130,7 @@ mod lattic3_price_stream {
             self.prices.remove(&asset);
         }
 
-        pub fn get_price(&self, asset: ResourceAddress) -> Option<Decimal> {
+        pub fn get_price(&self, asset: ResourceAddress) -> Option<PreciseDecimal> {
             if let Some(price) = self.prices.get(&asset) {
                 info!("[PriceStream:get_price] Price of {:?} is {:?}", asset, *price);
                 Some(*price)
@@ -140,7 +139,5 @@ mod lattic3_price_stream {
                 None
             }
         }
-
-        // TODO: implement a get all assets function
     }
 }

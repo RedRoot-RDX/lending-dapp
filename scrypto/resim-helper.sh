@@ -112,8 +112,8 @@ cmd_instantise_market() {
     fi
 
     heading "Creating market owner badge"
-    create_owner_badge_rtm=$(resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/create_owner_badge.rtm"))
-    export market_owner_badge=$(printf "$create_owner_badge_rtm" | grep "Resource: " | sed -n '1,1p' | grep -o "resource_.*")
+    create_market_owner_badge_rtm=$(resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/create_market_badge.rtm"))
+    export market_owner_badge=$(printf "$create_market_owner_badge_rtm" | grep "Resource: " | sed -n '1,1p' | grep -o "resource_.*")
 
     heading "Running transaction manifest"
     instantise_rtm=$(resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/$INSTANTISE_MARKET_RTM"))
@@ -132,9 +132,9 @@ cmd_instantise_market() {
 
     heading "Assigned env variables"
     tbl_out "market component:     " "$market_component"
-    tbl_out "market owner badge:   " "$market_owner_badge"
     tbl_out "market position badge:" "$market_position_badge"
     tbl_out "xrd pool unit:        " "$xrd_pool_unit"
+    tbl_out "market owner badge:   " "$market_owner_badge"
 }
 
 # Position management
@@ -266,6 +266,10 @@ cmd_instantise_price_stream() {
         return 0
     fi
 
+    heading "Creating price stream owner badge"
+    create_price_stream_owner_badge_rtm=$(resim run $(printf "$MARKET_PATH/$MARKET_MANIFESTS_PATH/create_price_stream_badge.rtm"))
+    export price_stream_owner_badge=$(printf "$create_price_stream_owner_badge_rtm" | grep "Resource: " | sed -n '1,1p' | grep -o "resource_.*")
+
     heading "Running transaction manifest"
     instantise_rtm=$(resim run $(printf "$PRICE_STREAM_PATH/$PRICE_STREAM_MANIFESTS_PATH/$INSTANTISE_PRICE_STREAM_RTM"))
 
@@ -277,7 +281,7 @@ cmd_instantise_price_stream() {
     resources=$(printf "$instantise_rtm" | grep "Resource: ") # Gets all the outputted resource addresses
     printf "$resources" | grep -o "Resource:.*"
     # sed -n '[line],[line]p' specifies the line number of the resource address; both of the [line] parameters should be the same
-    export price_stream_owner_badge=$(printf "$resources" | sed -n '1,1p' | grep -o "resource_.*")
+    # export price_stream_owner_badge=$(printf "$resources" | sed -n '1,1p' | grep -o "resource_.*")
 
     heading "Assigned env variables"
     tbl_out "price stream component:  " "$price_stream_component"

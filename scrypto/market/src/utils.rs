@@ -3,8 +3,13 @@ use scrypto::prelude::*;
 use scrypto_avltree::{AvlTree, NodeIterator, NodeIteratorMut};
 
 /* ------------------- Types ------------------ */
-pub type ValueMap = HashMap<ResourceAddress, Decimal>;
-pub type ValueTuple = (ResourceAddress, Decimal);
+pub type ValueMap = HashMap<ResourceAddress, PreciseDecimal>;
+pub type ValueTuple = (ResourceAddress, PreciseDecimal);
+
+/* ---------- Mathematical Operations --------- */
+pub fn p_to_dec(precise: PreciseDecimal) -> Decimal {
+    return precise.checked_truncate(RoundingMode::ToZero).unwrap();
+}
 
 /* ------------------ LazyVec ----------------- */
 /// State explosion-safe vector; builds on Ociswap's AvlTree library

@@ -1,7 +1,6 @@
 /* ------------------ Imports ----------------- */
-use scrypto::prelude::*;
-
 use crate::utils::ValueMap;
+use scrypto::prelude::*;
 
 /* ------------------- Badge ------------------ */
 #[derive(NonFungibleData, ScryptoSbor, Debug)]
@@ -13,11 +12,7 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn new() -> Self {
-        Position { supply: ValueMap::new(), debt: ValueMap::new() }
-    }
-
-    pub fn create(supply: ValueMap) -> Self {
+    pub fn new(supply: ValueMap) -> Self {
         Position { supply, debt: ValueMap::new() }
     }
 }

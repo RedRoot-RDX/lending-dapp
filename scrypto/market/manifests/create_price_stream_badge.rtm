@@ -26,11 +26,11 @@ CREATE_FUNGIBLE_RESOURCE_WITH_INITIAL_SUPPLY
     Tuple(                                                                   # Metadata initialization
         Map<String, Tuple>(                                                  # Initial metadata values
             "name" => Tuple(
-                Some(Enum<Metadata::String>("Lattic3 Owner Badge")), # Resource Name
-                true                                                 # Locked
+                Some(Enum<Metadata::String>("Lattic3 Price Stream Owner Badge")), # Resource Name
+                true                                                              # Locked
             ),
             "description" => Tuple(
-                Some(Enum<Metadata::String>("Badge representing the owner of the Lattic3 lending platform.")), # Resource Name
+                Some(Enum<Metadata::String>("Badge representing the owner of the Lattic3 price stream.")), # Resource Name
                 true                                                                                           # Locked
             )
 

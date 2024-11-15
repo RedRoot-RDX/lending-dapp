@@ -15,8 +15,8 @@ pub struct AssetEntry {
     pub name: String,
     pub symbol: String,
     // pub description: String,
-    pub apy: Decimal, // 0.1 == 10%
-    pub utilization: Decimal,
+    pub apy: PreciseDecimal, // 0.1 == 10%
+    pub utilization: PreciseDecimal,
 }
 
 impl AssetEntry {
@@ -28,8 +28,8 @@ impl AssetEntry {
         let symbol: String = resource_manager.get_metadata("symbol").expect("Cannot get asset symbol").expect("Asset symbol is None");
         // let description: String = resource_manager.get_metadata("description").expect("Cannot get asset description").expect("Asset description is None");
 
-        let apy: Decimal = dec!(0.1);
-        let utilization: Decimal = dec!(0.0);
+        let apy: PreciseDecimal = pdec!(0.1);
+        let utilization: PreciseDecimal = pdec!(0.0);
 
         AssetEntry {
             address,
@@ -52,12 +52,12 @@ impl AssetEntry {
         self.utilization = self.calc_utilization();
     }
 
-    pub fn calc_apy(&self) -> Decimal {
-        dec!(0.1)
+    pub fn calc_apy(&self) -> PreciseDecimal {
+        pdec!(0.1)
     }
 
-    pub fn calc_utilization(&self) -> Decimal {
-        dec!(0.0)
+    pub fn calc_utilization(&self) -> PreciseDecimal {
+        pdec!(0.0)
     }
 }
 
