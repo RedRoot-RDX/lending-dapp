@@ -15,8 +15,8 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
     header: "Assets",
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
-        <img 
-          src={getAssetIcon(row.getValue("label"))} 
+        <img
+          src={getAssetIcon(row.getValue("label"))}
           alt={`${row.getValue("label")} icon`}
           className="w-8 h-8 rounded-full"
         />
@@ -55,7 +55,7 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
 
           const borrowerBadgeAddr = process.env.NEXT_PUBLIC_BORROWER_BADGE_ADDR;
           const marketComponent = process.env.NEXT_PUBLIC_MARKET_COMPONENT;
-          
+
           if (!borrowerBadgeAddr || !marketComponent) {
             toast({
               variant: "destructive",
@@ -85,10 +85,10 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
             account: accounts[0].address,
             position_badge_address: borrowerBadgeAddr,
             position_badge_local_id: getNFTBalance.items[0],
-            assets: [{
+            asset: {
               address: row.original.address,
               amount: amount
-            }]
+            }
           });
 
           console.log("Manifest: ", manifest);
@@ -121,20 +121,20 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
           asset: row.original.label,
           amount: amount,
         });
-        
+
         toast({
           title: "Repayment Initiated",
           description: `Repaying ${amount} ${row.original.label}`,
         });
-        
+
         setIsDialogOpen(false);
       };
 
       return (
         <>
           <div className="text-right">
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               onClick={() => setIsDialogOpen(true)}
             >
               {row.original.type === 'supply' ? 'Withdraw' : 'Repay'}
@@ -160,4 +160,4 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
       );
     },
   },
-]; 
+];

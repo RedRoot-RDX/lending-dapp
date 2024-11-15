@@ -20,31 +20,33 @@ export default function position_borrow_rtm({ component, account, position_badge
   assets.forEach((asset) => {
     // Get hashmap entry for the asset
     asset_entry += `
-    Address("${asset.address}") => Decimal("${asset.amount}"),`
+    Address("${asset.address}") => PreciseDecimal("${asset.amount}"),`
   })
 
   let rtm = `
 CALL_METHOD
-  Address("${account}")
-  "create_proof_of_non_fungibles"
-  Address("${position_badge_address}")
-  Array<NonFungibleLocalId>(NonFungibleLocalId("${position_badge_local_id}"));
+    Address("${account}")
+    "withdraw_non_fungibles"
+    Address("${position_badge_address}")
+    Array<NonFungibleLocalId>(NonFungibleLocalId("${position_badge_local_id}"));
 
-POP_FROM_AUTH_ZONE
-  Proof("position_proof");
+TAKE_NON_FUNGIBLES_FROM_WORKTOP
+    Address("${position_badge_address}")
+    Array<NonFungibleLocalId>(NonFungibleLocalId("${position_badge_local_id}"))
+    Bucket("position_badge");
 
 CALL_METHOD
   Address("${component}")
   "position_borrow"
-  Proof("position_proof")
-  Map<Address, Decimal>(${asset_entry}
+  Bucket("position_badge")
+  Map<Address, PreciseDecimal>(${asset_entry}
   );
 
 CALL_METHOD
   Address("${account}")
   "deposit_batch"
   Expression("ENTIRE_WORKTOP");
-  `
+`
 
   return rtm
 }
