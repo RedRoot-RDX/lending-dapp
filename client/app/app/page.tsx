@@ -9,7 +9,7 @@ import { columns } from "@/components/asset-table/columns";
 import SupplyDialog from "@/components/supply-dialog";
 import { useRadixContext } from "@/contexts/provider";
 import { gatewayApi, rdt } from "@/lib/radix";
-import { getAssetAddrRecord, Asset, AssetName, getAssetApy, getWalletBalance } from "@/types/asset";
+import { getAssetAddrRecord, Asset, AssetName, getAssetApy, getWalletBalance, assetConfigs } from "@/types/asset";
 import { PortfolioTable } from "@/components/portfolio-table/portfolio-table";
 import { portfolioColumns } from "@/components/portfolio-table/portfolio-columns";
 import { useToast } from "@/components/ui/use-toast";
@@ -66,6 +66,7 @@ export default function App() {
       wallet_balance: -1,
       select_native: 0,
       apy: 0,
+      pool_unit_address: '',
     }))
   );
   const [portfolioData, setSupplyPortfolioData] = useState<Asset[]>([]);
@@ -135,7 +136,7 @@ export default function App() {
         })) || [];
 
         // Convert to portfolio data for supply
-        const supplyPortfolioData: Asset[] = await Promise.all(
+        const supplyPortfolioData = await Promise.all(
           suppliedAssets.map(async (suppliedAsset) => {
             const assetConfig = Object.entries(getAssetAddrRecord()).find(
               ([_, address]) => address === suppliedAsset.address
@@ -150,7 +151,9 @@ export default function App() {
               wallet_balance: await getWalletBalance(label as AssetName, accounts[0].address),
               select_native: suppliedAsset.supplied_amount,
               apy: getAssetApy(label as AssetName),
-            };
+              pool_unit_address: assetConfigs[label as AssetName].pool_unit_address,
+              type: 'supply'
+            } as Asset;
           })
         ).then(results => results.filter((asset): asset is Asset => asset !== null));
 

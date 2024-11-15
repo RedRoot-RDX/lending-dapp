@@ -81,6 +81,7 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
             });
             return;
           }
+          console.log("Pool unit address: ", row.original.pool_unit_address);
 
           const manifest = position_withdraw_rtm({
             component: marketComponent,
@@ -88,7 +89,7 @@ export const portfolioColumns: ColumnDef<Asset>[] = [
             position_badge_address: borrowerBadgeAddr,
             position_badge_local_id: getNFTBalance.items[0],
             asset: {
-              address: row.original.address,
+              address: row.original.pool_unit_address ?? "",
               amount: amount
             }
           });

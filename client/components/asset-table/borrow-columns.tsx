@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Asset } from "@/types/asset";
 
-export const borrowColumns: ColumnDef<Asset, unknown>[] = [
+export const borrowColumns: ColumnDef<Asset>[] = [
   {
     id: "select",
     header: "Select assets",
@@ -24,15 +24,27 @@ export const borrowColumns: ColumnDef<Asset, unknown>[] = [
   },
   {
     accessorKey: "label",
-    header: "Assets",
+    header: "Asset",
+    cell: ({ row }) => (
+      <div className="flex items-center gap-3">
+        <img
+          src={getAssetIcon(row.getValue("label"))}
+          alt={`${row.getValue("label")} icon`}
+          className="w-6 h-6 rounded-full"
+        />
+        <span className="font-semibold">{row.getValue("label")}</span>
+      </div>
+    ),
+  },
+  {
+    accessorKey: "wallet_balance",
+    header: "Wallet Balance",
     cell: ({ row }) => {
-      const iconUrl = getAssetIcon(row.getValue("label") as AssetName);
-      return (
-        <div className="flex items-center gap-2">
-          <img src={iconUrl} className="w-6 h-6 rounded-full" alt="" />
-          <span>{row.getValue("label")}</span>
-        </div>
-      );
+      const balance = row.getValue("wallet_balance");
+      if (balance === -1) {
+        return <span className="text-muted-foreground">Loading...</span>;
+      }
+      return <span className="font-semibold">{Number(balance).toFixed(2)}</span>;
     },
   },
   {

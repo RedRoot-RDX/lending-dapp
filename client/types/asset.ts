@@ -6,6 +6,7 @@ export type AssetName = 'XRD' | 'xwBTC' | 'FLOOP' | 'xUSDC' | 'EARLY' | 'HUG' | 
 export interface Asset {
   address: string;
   label: AssetName;
+  pool_unit_address: string;
   wallet_balance: number;
   select_native: number;
   apy: number;
@@ -18,6 +19,7 @@ export interface AssetConfig {
   label: AssetName;
   icon: string;
   apy: number;
+  pool_unit_address?: string;
 }
 
 export const assetConfigs: Record<AssetName, AssetConfig> = {
@@ -26,60 +28,70 @@ export const assetConfigs: Record<AssetName, AssetConfig> = {
     label: "XRD",
     icon: "https://assets.radixdlt.com/icons/icon-xrd-32x32.png",
     apy: 10.3,
+    pool_unit_address: "resource_tdx_2_1thengnn9dgrry58kydamk520swxmlyrurxcqt07pr76p627g7ff40v",
   },
   xwBTC: {
     address: "resource_xwbtc",
     label: "xwBTC",
     icon: "https://assets.instabridge.io/tokens/icons/xwBTC.png",
     apy: 5.5,
+    pool_unit_address: "resource_123",
   },
   FLOOP: {
     address: "resource_floop",
     label: "FLOOP",
     icon: "https://assets.caviarnine.com/tokens/floop_babylon.png",
     apy: 5.2,
+    pool_unit_address: "resource_123",
   },
   xUSDC: {
     address: "resource_xusdc",
     label: "xUSDC",
     icon: "https://assets.instabridge.io/tokens/icons/xUSDC.png",
     apy: 4.8,
+    pool_unit_address: "resource_123",
   },
   EARLY: {
     address: "resource_early",
     label: "EARLY",
     icon: "https://arweave.net/uXCQ9YVGkEijn7PS2wdkXqwkU_YrdgpNtQPH2Y1-Qcs",
     apy: 23.1,
+    pool_unit_address: "resource_123",
   },
   HUG: {
     address: "resource_hug",
     label: "HUG",
     icon: "https://tokens.defiplaza.net/cdn-cgi/imagedelivery/QTzOBjs3mHq3EhZxDosDSw/f5cdcf72-c7a2-4032-1252-1be08edb0700/token",
     apy: 23.1,
+    pool_unit_address: "resource_123",
   },
   DFP2: {
     address: "resource_dfp2",
     label: "DFP2",
     icon: "https://radix.defiplaza.net/assets/img/babylon/defiplaza-icon.png",
     apy: 23.1,
+    pool_unit_address: "resource_123",
   },
   xETH: {
     address: "resource_xeth",
     label: "xETH",
     icon: "https://assets.instabridge.io/tokens/icons/xETH.png",
     apy: 23.1,
+    pool_unit_address: "resource_123",
   },
   ASTRL: {
     address: "resource_astrl",
     label: "ASTRL",
     icon: "https://astrolescent.com/assets/img/tokens/astrl.png",
     apy: 23.1,
+    pool_unit_address: "resource_123",
   },
   CAVIAR: {
     address: "resource_caviar",
     label: "CAVIAR",
     icon: "https://assets.caviarnine.com/tokens/caviar_babylon.png",
     apy: 23.1,
+    pool_unit_address: "resource_123",
   },
 };
 
